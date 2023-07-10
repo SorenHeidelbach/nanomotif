@@ -1,10 +1,13 @@
 from nanomotif.data_loader import DataLoader
-from nanomotif.utils import Sequences
-from nanomotif.SequenceEnrichment import SequenceEnrichment
-from nanomotif import utils
+from nanomotif.reference import Reference
+from nanomotif.motifs import SequenceEnrichment
+from nanomotif.utils.dna import sample_seq_at_letter
 import numpy as np
 import warnings
+import copy
 import polars as pl
+
+
 class ContigProcessor():
     def __init__(self, pileup_file, ref_file, window_size: int=5, min_fraction_mod: float=80, modified: str="a|m", min_score: int=5, backup_prefilt: bool=True):
         """
@@ -29,26 +32,27 @@ class ContigProcessor():
         assert isinstance(window_size, int), "window_size must be an integer"
         assert window_size > 0, "window_size must be positive"
 
-        self.ref = Sequences(ref_file)
+        self.ref = Reference(ref_file)
         self.raw_pileup = DataLoader(pileup_file).pileup 
         self.filter_pileup(min_fraction_mod, modified, min_score)
         self.pileup = self.add_ref_sequence_at_modification(window_size) 
-        self.SequenceEnrichment_stranded = self.instantiate_motif_identifiers()
-        self.SequenceEnrichment = self.combine_SequenceEnrichment_identifiers_on_strand()
-        self.update_SequenceEnrichment_kl_prior()
+        self.sequence_enrichments_stranded = self.instantiate_sequence_enrichments()
+        self.sequence_enrichments = self.combine_sequence_enrichments_on_strand()
+        self.update_kl_priors()
+        self.kl_prior_type = "uniform"
         self.window_size = window_size
 
         # Instance validation
         assert isinstance(self.pileup, pl.DataFrame), "pileup must be a DataFrame"
-        assert isinstance(self.ref, Sequences), "ref must be a Sequences object"
+        assert isinstance(self.ref, Reference), "ref must be a Reference object"
 
     def update_motif_identifiers(self):
         """
         Function to update motif identiers, reflecting the current pileup date.
         """
 
-        self.SequenceEnrichment_stranded = self.instantiate_motif_identifiers()
-        self.SequenceEnrichment = self.combine_SequenceEnrichment_identifiers_on_strand()
+        self.sequence_enrichments_stranded = self.instantiate_sequence_enrichments()
+        self.sequence_enrichments = self.combine_sequence_enrichments_on_strand()
 
     def add_ref_sequence_at_modification(self, window_size: int=5):
         """
@@ -64,7 +68,7 @@ class ContigProcessor():
         assert isinstance(window_size, int), "window_size must be an integer"
         assert window_size > 0, "window_size must be positive"
         assert isinstance(self.pileup, pl.DataFrame), "pileup must be a DataFrame"
-        assert isinstance(self.ref, Sequences), "ref must be a Sequences object"
+        assert isinstance(self.ref, Reference), "ref must be a Reference object"
 
         pileup = self.pileup
 
@@ -106,7 +110,7 @@ class ContigProcessor():
         self.pileup = pileup_filt
 
 
-    def instantiate_motif_identifiers(self, min_sites: int=4):
+    def instantiate_sequence_enrichments(self, min_sites: int=4):
         """
         Function to instantiate motif identifiers using grouped pileup data.
 
@@ -121,7 +125,7 @@ class ContigProcessor():
         assert all(item in self.pileup.columns for item in ["strand", "ref", "modified", "sequence"]), \
             "Pileup DataFrame must contain 'strand', 'ref', 'modified' and 'sequence' columns"
 
-        SequenceEnrichment = {}
+        seqs_enrich = {}
         for group, data in self.pileup.groupby(["strand", "ref", "modified"]):
             if "sequence" in data.columns:
                 if data.height < min_sites:
@@ -133,15 +137,15 @@ class ContigProcessor():
                         # Convert to reverse complement for negative strand
                         sequences = convert_flip_sequence(sequences)
                     # Create a SequenceEnrichment object for each group
-                    SequenceEnrichment[group] = SequenceEnrichment(sequences)
+                    seqs_enrich[group] = SequenceEnrichment(sequences)
                 except ValueError as e:
                     warnings.warn(f"An error occurred while instantiating the SequenceEnrichment object of {group}: {str(e)}")
             else:
                 warnings.warn(f"Data associated with {group} doesn't have a 'sequence' column.")
 
-        return SequenceEnrichment
+        return seqs_enrich
     
-    def combine_SequenceEnrichment_identifiers_on_strand(self):
+    def combine_sequence_enrichments_on_strand(self):
         """
         Function to combine motif identifiers on strand.
 
@@ -153,19 +157,19 @@ class ContigProcessor():
         """
 
         # Instance validation
-        assert isinstance(self.SequenceEnrichment_stranded, dict), "SequenceEnrichment must be a dictionary"
+        assert isinstance(self.sequence_enrichments_stranded, dict), "SequenceEnrichment must be a dictionary"
 
         merged = {}
         mods = self.pileup.get_column("modified").unique().to_list()
         refs = self.pileup.get_column("ref").unique().to_list()
         for mod in mods:
             for ref in refs:
-                if ('-', ref, mod) in self.SequenceEnrichment_stranded.keys():
-                    rev_seq = self.SequenceEnrichment_stranded['-', ref, mod].sequences
+                if ('-', ref, mod) in self.sequence_enrichments_stranded.keys():
+                    rev_seq = self.sequence_enrichments_stranded['-', ref, mod].sequences
                 else:
                     rev_seq = []
-                if ('+', ref, mod) in self.SequenceEnrichment_stranded.keys():
-                    fwd_seq = self.SequenceEnrichment_stranded['+', ref, mod].sequences
+                if ('+', ref, mod) in self.sequence_enrichments_stranded.keys():
+                    fwd_seq = self.sequence_enrichments_stranded['+', ref, mod].sequences
                 else:
                     fwd_seq = []
                 seq = [*rev_seq, *fwd_seq]
@@ -201,7 +205,7 @@ class ContigProcessor():
         return np.mean(np.concatenate([got_mod_fwd, got_mod_rev]))
 
     def sample_from_contig(self, contig, base_context = "ATGC", n=1000):
-        return utils.sample_seq_at_letter(self.ref.sequences[contig], n=n, size=self.window_size, letter=base_context)
+        return sample_seq_at_letter(self.ref.sequences[contig], n=n, size=self.window_size, letter=base_context)
 
     def sample_pssm(self, contig, base_context = "ATGC", **kwargs):
         """
@@ -230,9 +234,9 @@ class ContigProcessor():
         pssm = SequenceEnrichment(samples_seqs).pssm()
         return pssm
 
-    def update_SequenceEnrichment_kl_prior(self, prior_type="uniform", **kwargs):
+    def update_kl_priors(self, prior_type="uniform", **kwargs):
         """
-        Update the KL prior of the SequenceEnrichment.
+        Update the KL prior of the sequence_enrichments.
 
         :param prior_type: Type of prior, either "uniform", "gc" or "background"
         """
@@ -242,13 +246,13 @@ class ContigProcessor():
             "m": "C",
             "h": "C"
         }
-        for i in self.SequenceEnrichment:
+        for i in self.sequence_enrichments:
             if prior_type == "uniform":
-                prior = np.full_like(self.SequenceEnrichment[i].pssm(), 0.25)
+                prior = np.full_like(self.sequence_enrichments[i].pssm(), 0.25)
             elif prior_type == "background":
-                prior = self.sample_pssm(i[0], base_context=mod_to_nuc[i[1]], n=len(self.SequenceEnrichment[i].sequences))
+                prior = self.sample_pssm(i[0], base_context=mod_to_nuc[i[1]], n=len(self.sequence_enrichments[i].sequences))
             elif prior_type == "gc":
-                prior = np.full_like(self.SequenceEnrichment[i].pssm(), 0)
+                prior = np.full_like(self.sequence_enrichments[i].pssm(), 0)
                 gc = self.ref.seq_gc[i[0]]
                 # Set AT frequency
                 prior[0:2, :] = (1-gc)/2
@@ -256,7 +260,74 @@ class ContigProcessor():
                 prior[2:4, :] = gc/2
             else:
                 raise ValueError(f"Invalid prior_type: {prior_type}")
-            self.SequenceEnrichment[i].update_kl_prior(prior)
+            self.sequence_enrichments[i].update_kl_prior(prior)
+        self.kl_prior_type = prior_type
+
+    def sample_kl_divergencies_from_ref_background(self, contig, mod_type, n_samples = 100, base_context = "ATGC",**kwargs):
+        """
+        Sample KL divergencies from methylated sequencies to a PSSM sampled from the contig with an equal number of sequences.
+
+        Parameters
+        ----------
+        contig : str
+            Contig name
+        base_context : str, optional
+            Base to sample around, by default "ATGC" intpreted as A or T or G or C e.g. any base
+        **kwargs : dict
+            Keyword arguments to pass to sample_seq_at_letter
+
+        Returns
+        -------
+        np.ndarray
+            KL divergencies
+        """
+        m = copy.copy(self.sequence_enrichments[(contig, mod_type)])
+        sim = []
+        for _ in range(n_samples):
+            m.kl_prior = self.sample_pssm(contig, base_context, n=len(m.sequences))
+            sim.append(m.kl_divergence())
+        return sim
+    def plot_kl_divergencies_from_ref_background(self, contig, mod_type, n_samples = 100, base_context = "ATGC", min_kl=0.2, **kwargs):
+        """
+        Plot KL divergencies from methylated sequencies to a PSSM sampled from the contig with an equal number of sequences.
+
+        Parameters
+        ----------
+        contig : str
+            Contig name
+        base_context : str, optional
+            Base to sample around, by default "ATGC" intpreted as A or T or G or C e.g. any base
+        **kwargs : dict
+            Keyword arguments to pass to sample_seq_at_letter
+
+        Returns
+        -------
+        np.ndarray
+            KL divergencies
+        """
+        # Sample KL divergencies
+        sim = self.sample_kl_divergencies_from_ref_background(contig, mod_type, n_samples, base_context, **kwargs)
+        m = copy.copy(self.sequence_enrichments[(contig, mod_type)])
+        m.kl_prior = self.sample_pssm(contig, base_context, n=len(m.sequences))
+
+        # Enrichment plot
+        p, ax = m.plot_enrichment_with_prior(min_kl = min_kl)
+        ax[0].set_title(ax[0].get_title() + f"\n{contig}");
+        ax[1].set_title(ax[1].get_title() + "\nbackground");
+
+        # Boxplot
+        old_xlabs = ax[0].get_xticklabels()
+        xtickpos = copy.copy([i.get_position()[0] for i in old_xlabs])
+        xticklabs = copy.copy([i.get_text() for i in old_xlabs])
+        bp = ax[0].boxplot(np.array(sim), positions=np.arange(0, m.seq_length), flierprops = dict(alpha = 0), patch_artist=True);
+        ax[0].set_xticks(xtickpos);
+        ax[0].set_xticklabels(xticklabs);
+        for patch in bp['boxes']:
+            patch.set_facecolor("lightgray");
+            patch.set_edgecolor("black");
+        for median in bp['medians']:
+            median.set(color="black", linewidth=1);
+        
 
         
 def convert_flip_sequence(seqs):

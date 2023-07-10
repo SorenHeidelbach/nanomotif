@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(name='nanomotif',
       version='0.1',
@@ -7,5 +7,5 @@ setup(name='nanomotif',
       author='SH',
       author_email='shei@bio.aau.com',
       license='MIT',
-      packages=['nanomotif'],
+      packages=find_packages(),
       zip_safe=False)

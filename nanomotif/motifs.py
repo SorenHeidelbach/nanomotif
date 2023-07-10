@@ -8,7 +8,7 @@ from matplotlib import cm
 from scipy.stats import entropy
 from itertools import compress
 
-from nanomotif.utils import generate_random_dna_sequence
+from nanomotif.utils.dna import dreme_naive, generate_random_dna_sequence 
 
 
 class SequenceEnrichment:
@@ -212,7 +212,7 @@ class SequenceEnrichment:
         >>> type(seqs.clusters)
         <class 'dict'>
         >>> type(seqs.clusters[0])
-        <class 'nanomotif.SequenceEnrichment.SequenceEnrichment'>
+        <class 'nanomotif.motifs.SequenceEnrichment'>
         >>> seqs.clusters[0].sequences
         ['GATG', 'GATC']
         >>> seqs.clusters[1].sequences
@@ -292,7 +292,32 @@ class SequenceEnrichment:
         ax.set_xlabel("Relative Position")
         ax.set_ylabel("Frequency/KL Divergence")
 
-        return None
+        return ax
+    
+    def plot_enrichment_with_prior(self, min_kl=0.5):
+
+        plot, ax = plt.subplots(1, 2, figsize=(10, 5), sharey=True)
+        self.plot_enrichment(min_kl = min_kl, ax=ax[0])
+
+        for i in range(self.kl_prior.shape[0]):
+            ax[1].plot(self.kl_prior[i, :] + (i/120), label=f"{self.int_to_nuc[i+1]}", linewidth=2, c=cm.cubehelix((i+1)/5))
+
+        # Configure x-axis labels and ticks
+        n_labs = 4
+        window = self.seq_length//2
+        x_axis_step = window//n_labs
+        labs_positive = np.arange(0, x_axis_step * n_labs + 1, x_axis_step)
+        tick_label = np.concatenate((-labs_positive, labs_positive))
+        tick_position = tick_label + window
+        ax[1].set_xticks(tick_position)
+        ax[1].set_xticklabels(tick_label)
+        ax[1].set_xlabel("Relative Position")
+        ax[1].set_title("Prior")
+
+        ax[0].legend()
+        plot.tight_layout()
+
+        return plot, ax
 
 
 
@@ -334,125 +359,28 @@ def plot_dna_sequences(sequences, cm_palette="Pastel2"):
     font_size = min(200/n_bases, 200/n_seqs)
 
     # Create plot
-    fig, ax = plt.subplots()
-    ax.imshow(sequences_array, cmap=cm.get_cmap(cm_palette))
+    fig, ax = plt.subplots();
+    ax.imshow(sequences_array, cmap=cm.get_cmap(cm_palette));
 
     # Set labels for y axis
-    ax.set_yticks(np.arange(n_seqs))
-    ax.set_yticklabels(y_tick_labels, fontsize=200/n_seqs)
+    ax.set_yticks(np.arange(n_seqs));
+    ax.set_yticklabels(y_tick_labels, fontsize=200/n_seqs);
 
     # Loop over data dimensions and create text annotations
     for i in range(n_seqs):
         for j in range(n_bases):
             ax.text(j, i, m.sequences[i][j], ha="center", va="center", color="black", 
-                    fontsize=font_size, fontweight="bold")
+                    fontsize=font_size, fontweight="bold");
     
     # Draw line to separate consensus from sequences
-    ax.axhline(y=n_seqs-1.5, color="black", linewidth=1)
+    ax.axhline(y=n_seqs-1.5, color="black", linewidth=1);
     
     # Adjust plot layout and display
     fig.tight_layout()
-    plt.show()
+
+    return ax
 
 
-
-def get_kmers(sequence: str, kmer_size: int) -> list:
-    """
-    Generate all k-mers from a given sequence.
-
-    Parameters
-    ----------
-    sequence : str
-        The DNA sequence from which to generate k-mers.
-    kmer_size : int
-        The length of the k-mers.
-
-    Returns
-    -------
-    list
-        A list of all k-mers of given size that can be generated from the input sequence.
-
-    Examples
-    --------
-    >>> get_kmers('ATCGAT', 2)
-    ['AT', 'TC', 'CG', 'GA', 'AT']
-    """
-    return [sequence[i:i+kmer_size] for i in range(len(sequence) - kmer_size + 1)]
-
-
-
-def calculate_enrichment(positive_counts: dict, negative_counts: dict) -> dict:
-    """
-    Calculate the enrichment of k-mers in the positive sequences compared to negative sequences.
-
-    Parameters
-    ----------
-    positive_counts : dict
-        A dictionary containing the counts of each k-mer in the positive sequences.
-    negative_counts : dict
-        A dictionary containing the counts of each k-mer in the negative sequences.
-
-    Returns
-    -------
-    dict
-        A dictionary containing the log2 enrichment of each k-mer in the positive sequences.
-
-    Examples
-    --------
-    >>> SequenceEnrichment = SequenceEnrichment(['ATCG', 'GCTA', 'TACG', 'AGCT'])
-    >>> positive_counts = {'AT': 10, 'TC': 10, 'CG': 5}
-    >>> negative_counts = {'AT': 5, 'TC': 5, 'CG': 5}
-    >>> enrichments = SequenceEnrichment.calculate_enrichment(positive_counts, negative_counts)
-    >>> enrichments['AT']  # Enrichment of 'AT' in the positive sequences.
-    0.26303440583379406
-    """
-    total_positive_counts = sum(positive_counts.values())
-    total_negative_counts = sum(negative_counts.values())
-
-    enrichments = {}
-    for kmer, pos_count in positive_counts.items():
-        positive_freq = pos_count / total_positive_counts
-        negative_freq = negative_counts.get(kmer, 0) / total_negative_counts
-        enrichments[kmer] = np.inf if negative_freq == 0 else np.log2(positive_freq / negative_freq)
-    return enrichments
-
-
-def dreme_naive(positive_sequences: list, negative_sequences: list, kmer_size: int = 4) -> dict:
-    """
-    A simplified version of the DREME algorithm to find enriched k-mers in positive sequences.
-
-    Parameters
-    ----------
-    positive_sequences : list
-        A list of DNA sequences considered positive.
-    negative_sequences : list, optional
-        A list of DNA sequences considered negative. If set to "random", generates random sequences. Default is "random".
-    kmer_size : int, optional
-        The length of the k-mers. Default is 6.
-
-    Returns
-    -------
-    dict
-        A dictionary containing the enrichment of each k-mer in the positive sequences.
-
-    Examples
-    --------
-    >>> SequenceEnrichment = SequenceEnrichment(['ATCG', 'GCTA', 'TACG', 'AGCT'])
-    >>> positive_sequences = ['ATCG', 'GCTA', 'TACG', 'AGCT']
-    >>> negative_sequences = ['CGTA', 'TACG', 'GATC', 'CGAT']
-    >>> enrichments = dreme_naive(positive_sequences, negative_sequences, kmer_size=2)
-    >>> isinstance(enrichments, dict)
-    True
-    """
-    # Count k-mers in positive sequences
-    positive_counts = Counter(kmer for sequence in positive_sequences for kmer in get_kmers(sequence, kmer_size))
-
-    # Count k-mers in negative sequences
-    negative_counts = Counter(kmer for sequence in negative_sequences for kmer in get_kmers(sequence, kmer_size))
-
-    enrichments = calculate_enrichment(positive_counts, negative_counts)
-
-    return enrichments
 
 
 if __name__ == "__main__":

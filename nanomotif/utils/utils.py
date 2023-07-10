@@ -1,6 +1,5 @@
 import numpy as np
 
-
 def find_nearest_value(array, x):
     """
     Perform binary search to find the nearest value to x in a sorted array.

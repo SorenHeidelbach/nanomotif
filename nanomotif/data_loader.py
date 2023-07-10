@@ -4,11 +4,6 @@ import polars as pl
 class DataLoader():
     """
     A DataLoader class that loads data from pileup and reference files, and handles output file operations.
-
-    :param pileup_file: Path to the pileup file
-    :type pileup_file: str
-    :ivar pileup: Loaded data from the pileup file
-    :ivar ref: Loaded data from the reference file
     """
     def __init__(self, pileup_file):
         assert isinstance(pileup_file, str), "pileup_file must be a string"
@@ -23,10 +18,6 @@ class DataLoader():
     def load_modkit_pileup_bed(self):
         """
         Load bed file from modkit pileup. 
-
-        :returns: Loaded pileup data
-        :rtype: DataFrame
-
         """
         header_names = (
             "ref",
