@@ -32,7 +32,7 @@ class ContigProcessor():
         assert isinstance(window_size, int), "window_size must be an integer"
         assert window_size > 0, "window_size must be positive"
 
-        self.ref = Reference(ref_file)
+        self.ref = Reference(ref_file, trim_names=True)
         self.raw_pileup = DataLoader(pileup_file).pileup 
         self.filter_pileup(min_fraction_mod, modified, min_score)
         self.pileup = self.add_ref_sequence_at_modification(window_size) 
@@ -287,6 +287,23 @@ class ContigProcessor():
             m.kl_prior = self.sample_pssm(contig, base_context, n=len(m.sequences))
             sim.append(m.kl_divergence())
         return sim
+    
+
+    def motif_candidates_methylation_frequency(self, contig, mod_type, min_kl=0.5):
+        m = copy.copy(self.sequence_enrichments[(contig, mod_type)])
+        candidates = m.get_motif_candidates(min_kl=min_kl)
+        sequences = m.seq_to_int()[:, m.kl_divergence() > min_kl]
+
+        motifs_freq = {}
+        for i, motif in enumerate(candidates):
+            fwd = self.ref.motif_positions(motif, contig).shape[0]
+            rev = self.ref.motif_positions(motif, contig, reverse_strand=True).shape[0]
+            n_ref = fwd + rev
+            motif_int = [m.nuc_to_int[i] for i in [*motif] if i in m.nuc_to_int]
+            n_mod = np.all(sequences == motif_int, axis=1).sum()
+            motifs_freq[motif] =  {"n_mod": n_mod, "n_ref":n_ref, "freq":n_mod / n_ref}
+        return motifs_freq
+    
     def plot_kl_divergencies_from_ref_background(self, contig, mod_type, n_samples = 100, base_context = "ATGC", min_kl=0.2, **kwargs):
         """
         Plot KL divergencies from methylated sequencies to a PSSM sampled from the contig with an equal number of sequences.

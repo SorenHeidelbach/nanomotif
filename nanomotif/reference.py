@@ -5,19 +5,19 @@ from nanomotif.utils.dna import reverse_complement, get_gc_content
 from nanomotif.utils.utils import distance_to_nearest_value_in_arrays
 
 class Reference:
-    def __init__(self, path: str = None, sequences: dict = None):
+    def __init__(self, path: str = None, sequences: dict = None, **kwargs):
         self.path = path
         if sequences is not None:
             self.sequences = sequences
         elif path is not None:
-            self.sequences = self.read_fasta()
+            self.sequences = self.read_fasta(**kwargs)
         else:
             raise ValueError("Either path or sequences must be provided")
         
         self.seq_lengths = {k: len(v) for k, v in self.sequences.items()}
         self.seq_gc = {k: get_gc_content(v) for k, v in self.sequences.items()}
 
-    def read_fasta(self, trim_names=True, trim_character=" ") -> dict:
+    def read_fasta(self, trim_names=False, trim_character=" ") -> dict:
         """
         Reads a fasta file and returns a dictionary with the contig names as 
         keys and the sequences as values

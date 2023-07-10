@@ -185,6 +185,22 @@ class SequenceEnrichment:
         consensus_array[self.kl_divergence() < min_kl] = "."
         return "".join(consensus_array)
 
+    def get_motif_candidates(self, min_kl=0.5, padded=True):
+        enriched_positions = self.kl_divergence() > min_kl
+        enriched_bases = self.kl_prior < self.pssm()
+
+        motif_candidates = [""]
+        bases_order = np.array(list(self.int_to_nuc.values())[0:4])
+        for i in range(enriched_bases.shape[1]):
+            if bool(enriched_positions[i]):
+                bases_to_add = bases_order[enriched_bases[:, i]]
+                motif_candidates = [p + q for p in motif_candidates for q in bases_to_add]
+            elif padded:
+                motif_candidates = [p + "." for p in motif_candidates]
+        
+        return motif_candidates
+
+
     def cluster(self, min_cluster_size="frac", min_kl=0.01):
         """
         Cluster sequences based on Manhattan edit distance using HDBSCAN.

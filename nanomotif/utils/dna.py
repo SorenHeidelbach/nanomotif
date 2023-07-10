@@ -4,8 +4,25 @@ from collections import Counter
 
 def reverse_complement(seq: str) -> str:
     '''Returns the reverse complement of a DNA sequence'''
-    assert set("ATG").issubset(["A", "G", "C", "T", "N"]), "Sequence must be a DNA sequence of A, T, G, C or N"
-    complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N': 'N'}
+    complement = {
+        "A": "T", 
+        "T": "A", 
+        "G": "C", 
+        "C": "G", 
+        "N": "N", 
+        "R": "Y", 
+        "Y": "R", 
+        "S": "S", 
+        "W": "W", 
+        "K": "M", 
+        "M": "K", 
+        "B": "V", 
+        "D": "H", 
+        "H": "D", 
+        "V": "B"
+    }
+    assert set(seq).issubset(list(complement.keys())), "Sequence must be a DNA sequence of A, T, G, C or N"
+
     return "".join(complement[base] for base in reversed(seq))
 
 def generate_random_dna_sequence(length):
