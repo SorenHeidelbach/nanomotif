@@ -1,11 +1,12 @@
 from nanomotif.data_loader import DataLoader
 from nanomotif.reference import Reference
 from nanomotif.motifs import SequenceEnrichment
-from nanomotif.utils.dna import sample_seq_at_letter
+from nanomotif.utils.dna import sample_seq_at_letter, edit_distance
 import numpy as np
 import warnings
 import copy
 import polars as pl
+import seaborn as sns
 
 
 class ContigProcessor():
@@ -344,8 +345,38 @@ class ContigProcessor():
             patch.set_edgecolor("black");
         for median in bp['medians']:
             median.set(color="black", linewidth=1);
-        
+    
+    def plot_annotated_distance_heatmap(self, contig: str, mod_type: str, min_kl=0.2, min_group_size=10) -> None:
+        m = self.sequence_enrichments[(contig, mod_type)]
+        sequences = m.kl_masked_sequences(min_kl = min_kl)
+        dist = edit_distance(m.sequences)
+        heatmap = sns.clustermap(dist, cmap=sns.color_palette("YlOrBr", as_cmap=True));
+        heatmap_data = heatmap.data2d.to_numpy()
 
+        # Initialise dictionary of identical sequences
+        identical_sequences_index = {} 
+        group_start = 0
+        identical_sequences_index[group_start] = [0]
+
+        # Iterate over the diagonal of the heatmap
+        for i in range(heatmap_data.shape[0] - 1):
+            # if the next diagonal element is different, start a new group
+            if heatmap_data[i, i] != heatmap_data[i+1, i]:
+                group_start = i
+                identical_sequences_index[group_start] = [i]
+            else:
+                identical_sequences_index[group_start] = identical_sequences_index[group_start] + [i]
+
+        # Annotate heatmap with identical sequences
+        for k, v in identical_sequences_index.items():
+            if len(v) > min_group_size:
+                seq = "".join((sequences[heatmap.dendrogram_col.reordered_ind[k]]))
+                x_plot = v[int(len(v)/2)]
+                contig_number_fwd = self.ref.motif_positions(seq, contig).shape[0]
+                contig_number_rev = self.ref.motif_positions(seq, contig, reverse_strand=True).shape[0]
+                contig_number = contig_number_fwd + contig_number_rev
+                heatmap.figure.axes[2].text(x_plot, x_plot, f"{seq}\nmod={len(v)} | ref={contig_number} | {100*len(v)/contig_number:.2f}%", fontsize=8, ha='center', va="center", rotation=45)
+        return heatmap
         
 def convert_flip_sequence(seqs):
     """

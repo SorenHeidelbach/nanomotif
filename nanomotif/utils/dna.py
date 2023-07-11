@@ -1,5 +1,10 @@
 import random
 import numpy as np
+import polars as pl
+import networkx as nx
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+import editdistance
 from collections import Counter
 
 def reverse_complement(seq: str) -> str:
@@ -48,6 +53,12 @@ def generate_kmers(k: int):
             i = i // 4
         kmers.append(kmer)
     return kmers
+
+def convert_ints_to_bases(ints: list[int], conversion_dict: dict):
+    seq = ""
+    for i in ints:
+        seq = seq + conversion_dict[i]
+    return seq
 
 def sample_seq_at_letter(seq, n, size, letter):
     """
@@ -180,3 +191,49 @@ def dreme_naive(positive_sequences: list, negative_sequences: list, kmer_size: i
     enrichments = calculate_enrichment(positive_counts, negative_counts)
 
     return enrichments
+
+def edit_distance(sequences: list) -> np.ndarray:
+    dists = np.empty(shape = (len(sequences), len(sequences)))
+    for i in range(0, len(sequences)):
+        for j in range(0, len(sequences)):
+            dists[i, j] = editdistance.eval(sequences[i], sequences[j])
+    return dists
+
+def get_kmer_graph(sequences, kmer_size = 6, stride = 2, position_aware = True):
+    kmer_graph = pl.DataFrame({"seq":sequences}).with_columns(
+      pl.col("seq").apply(
+        lambda seq: {
+          "from":get_kmers(seq, kmer_size)[::stride][:-1], 
+          "to": get_kmers(seq, kmer_size)[::stride][1:], 
+          "position": range(0, (len(sequences[0]) - kmer_size) - stride + 1, stride)
+        }
+      ).alias("order")
+    ).unnest("order").explode("from", "to", "position")
+
+    if position_aware:
+        kmer_graph = kmer_graph.with_columns([
+            (pl.col("from") + "_" + pl.col("position").cast(pl.Utf8)),
+            (pl.col("to") + "_" + pl.col("position").add(1).cast(pl.Utf8))
+        ]) \
+        .groupby(["from", "to", "position"]).agg(pl.count().alias("count")) 
+    else:
+        kmer_graph = kmer_graph \
+        .groupby(["from", "to"]).agg(pl.count().alias("count"))
+    return kmer_graph
+
+def plot_kmer_graph(kmer_graph, min_connection = 10, ax=None):
+    kmer_graph = kmer_graph.filter(pl.col("count") > min_connection)
+    G = nx.from_pandas_edgelist(kmer_graph, "from", "to", ["count", "position"], create_using=nx.DiGraph)
+    pos = {}
+    for i in G.nodes(data=True):
+        count = kmer_graph.filter((pl.col("from") == i[0]) | (pl.col("to") == i[0])).mean().get_column("count")[0]
+        pos[i[0]] = (int(i[0].split("_")[1]), count)
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(20, 10))
+    
+    counts = [i[2]["count"] for i in G.edges(data=True)]
+    line_width = [int(i/max(counts) * 10) for i in counts]
+    
+    nx.draw_networkx_edges(G, pos, ax=ax, arrows=False, alpha = 1, width = line_width, edge_cmap=mpl.colormaps["cividis_r"], edge_color = counts);
+    nx.draw_networkx_labels(G, pos, ax=ax, bbox=dict(boxstyle="square", fc="w", ec="k"), font_color = "black", labels = {i: i.split("_")[0] for i in pos}, font_size=10, font_family="monospace");

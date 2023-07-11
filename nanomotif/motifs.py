@@ -185,7 +185,31 @@ class SequenceEnrichment:
         consensus_array[self.kl_divergence() < min_kl] = "."
         return "".join(consensus_array)
 
-    def get_motif_candidates(self, min_kl=0.5, padded=True):
+    def kl_masked_sequences(self, min_kl=0.5):
+        """
+        Mask sequences with low Kullback-Liebler divergence with ".".
+
+        Parameters
+        ----------
+        min_kl : float, optional
+            Minimum Kullback-Leibler divergence for a position to be considered as part of the consensus sequence. Default is 0.5.
+
+        Returns
+        -------
+        list
+            A list of masked sequences.
+
+        Examples
+        --------
+        >>> seqs = SequenceEnrichment(['ATCG', 'GTTA', 'TTCG', 'ATCT', 'ATCT', 'ATCT'])
+        >>> seqs.kl_masked_sequences()
+        ['ATCG', '.TT.', 'TTCG', 'ATCT', 'ATCT', 'ATCT']
+        """
+        sequences_array = np.array([[*seq] for seq in self.sequences])
+        sequences_array[:, self.kl_divergence() < min_kl] = "."
+        return sequences_array
+
+    def get_motif_candidates(self, min_kl=0.2, padded=True):
         enriched_positions = self.kl_divergence() > min_kl
         enriched_bases = self.kl_prior < self.pssm()
 
