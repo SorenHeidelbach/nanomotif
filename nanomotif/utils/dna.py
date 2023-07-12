@@ -7,34 +7,186 @@ import matplotlib as mpl
 import editdistance
 from collections import Counter
 
-def reverse_complement(seq: str) -> str:
-    '''Returns the reverse complement of a DNA sequence'''
-    complement = {
-        "A": "T", 
-        "T": "A", 
-        "G": "C", 
-        "C": "G", 
-        "N": "N", 
-        "R": "Y", 
-        "Y": "R", 
-        "S": "S", 
-        "W": "W", 
-        "K": "M", 
-        "M": "K", 
-        "B": "V", 
-        "D": "H", 
-        "H": "D", 
-        "V": "B"
+class DNAsequences:
+    bases = ["A", "T", "C", "G"]
+    iupac = ["A", "T", "C", "G", "R", "Y", "S", "W", "K", "M", "B", "D", "H", "V", "N"]
+    iupac_dict = {
+        "A": ["A"], "T": ["T"], "C": ["C"], "G": ["G"],
+        "R": ["A", "G"], "Y": ["C", "T"], 
+        "S": ["G", "C"], "W": ["A", "T"], 
+        "K": ["G", "T"], "M": ["A", "C"],
+        "B": ["C", "G", "T"],
+        "D": ["A", "G", "T"],
+        "H": ["A", "C", "T"],
+        "V": ["A", "C", "G"],
+        "N": ["A", "T", "C", "G"]
     }
-    assert set(seq).issubset(list(complement.keys())), "Sequence must be a DNA sequence of A, T, G, C or N"
+    complement = {
+        "A": "T", "T": "A", "G": "C", "C": "G", 
+        "N": "N", "R": "Y", "Y": "R", "S": "S", 
+        "W": "W", "K": "M", "M": "K", "B": "V", 
+        "D": "H", "H": "D", "V": "B"
+    }
+    def __init__(self, sequences):
+        sequences = [seq.upper() for seq in sequences]
+        self.sequences = sequences
+    
+    @property
+    def sequences(self):
+        return self._sequences
 
-    return "".join(complement[base] for base in reversed(seq))
+    @sequences.setter
+    def sequences(self, value):
+        assert isinstance(value, list), "DNA sequences must be a list"
+        assert all(isinstance(seq, str) for seq in value), "DNA sequences must be a list of strings"
+        self.sequence_alphabet = list(set("".join(value)))
+        assert all(letter in self.iupac for letter in self.sequence_alphabet), f"DNA sequences must be a nucleotide sequence of {''.join(self.iupac)}"
+        self._sequences = value
+
+    def __getitem__(self, key):
+        return self.sequences[key]
+
+    def __len__(self):
+        return len(self.sequences)
+
+    def __iter__(self):
+        return iter(self.sequences)
+    
+    def __repr__(self):
+        return f"DNAsequences() | Number of sequences: {len(self)} | Unique Bases: {self.sequence_alphabet}"
+
+    def __add__(self, other):
+        if isinstance(other, DNAsequences):
+            return DNAsequences(self.sequences + other.sequences)
+        elif isinstance(other, list):
+            return DNAsequences(self.sequences + other)
+        else:
+            return NotImplemented
+
+    def __mul__(self, other):
+        try:
+            return DNAsequences(self.sequences * other)
+        except:
+            return NotImplemented
+
+    def __eq__(self, other):
+        if isinstance(other, DNAsequences):
+            return self.sequences == other.sequences
+        elif isinstance(other, list):
+            return self.sequences == other
+        else:
+            return NotImplemented
+
+    def __ne__(self, other):
+        if isinstance(other, DNAsequences):
+            return self.sequences != other.sequences
+        elif isinstance(other, list):
+            return self.sequences != other
+        else:
+            return NotImplemented
+
+    def __lt__(self, other):
+        if isinstance(other, int):
+            return len(self) < other
+        elif isinstance(other, (DNAsequences, list, set, tuple)):
+            return len(self) < len(other)
+        else:
+            return NotImplemented
+
+    def __le__(self, other):
+        if isinstance(other, int):
+            return len(self) <= other
+        elif isinstance(other, (DNAsequences, list, set, tuple)):
+            return len(self) <= len(other)
+        else:
+            return NotImplemented
+
+    def __gt__(self, other):
+        if isinstance(other, int):
+            return len(self) > other
+        elif isinstance(other, (DNAsequences, list, set, tuple)):
+            return len(self) > len(other)
+        else:
+            return NotImplemented
+
+    def __ge__(self, other):
+        if isinstance(other, int):
+            return len(self) >= other
+        elif isinstance(other, (DNAsequences, list, set, tuple)):
+            return len(self) >= len(other)
+        else:
+            return NotImplemented
+
+    def __contains__(self, item):
+        return item in self.sequences    
+
+    def __copy__(self):
+        return DNAsequences(self.sequences.copy())
+
+    def __deepcopy__(self):
+        return DNAsequences(self.sequences.copy())
+
+    def reverse_complement(self) -> list:
+        '''
+        Returns the reverse complement of a sequences
+
+        Returns
+        -------
+        list
+            List of reverse complemented sequences
+
+        Examples
+        --------
+        >>> DNAsequences(["ATCG", "GCTA", "TACG", "AGCT"]).reverse_complement()
+        ['CGAT', 'TAGC', 'CGTA', 'AGCT']
+        '''
+        return ["".join([self.complement[base] for base in reversed(seq)]) for seq in self.sequences]
+
+    def gc(self) -> list:
+        '''
+        Returns the GC content of a sequences
+
+        Returns
+        -------
+        list of floats
+            GC content of sequences
+
+        Examples
+        --------
+        >>> DNAsequences(["ATCG", "GCTA", "TACA", "AGCT"]).gc()
+        [0.5, 0.5, 0.25, 0.5]
+        '''
+        return [(seq.count("G") + seq.count("C")) / len(seq) for seq in self.sequences]
+
+    def edit_distances(self) -> np.ndarray:
+        """
+        Calculate the edit distance between all sequences in the DNAsequences object.
+
+        Returns
+        -------
+        np.ndarray
+            A matrix of edit distances between all sequences in the DNAsequences object.
+
+        Examples
+        --------
+        >>> DNAsequences(["ATCG", "GCTA", "TACT", "AGCT"]).edit_distances()
+        array([[0., 4., 3., 2.],
+               [4., 0., 3., 2.],
+               [3., 3., 0., 2.],
+               [2., 2., 2., 0.]])
+        """
+        n = len(self)
+        dists = np.empty(shape = (n, n))
+        for i in range(0, n):
+            for j in range(0, n):
+                dists[i, j] = editdistance.eval(self[i], self[j])
+        return dists
+
 
 def generate_random_dna_sequence(length):
     nucleotides = ['A', 'T', 'C', 'G']
     sequence = ''.join(random.choice(nucleotides) for _ in range(length))
     return sequence
-
 
 def generate_dna_sequence_with_random_padding(seq: str, length: int):
     nucleotides = ['A', 'T', 'C', 'G']
@@ -268,3 +420,6 @@ def plot_kmer_graph(kmer_graph, min_connection = 10, ax=None, y_axis = "mean_con
         ax.set_ylabel("Total Connections")
     ax.collections[0].set_clim(0, None)
 
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
