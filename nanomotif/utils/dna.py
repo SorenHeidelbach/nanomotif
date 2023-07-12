@@ -211,29 +211,60 @@ def get_kmer_graph(sequences, kmer_size = 6, stride = 2, position_aware = True):
     ).unnest("order").explode("from", "to", "position")
 
     if position_aware:
-        kmer_graph = kmer_graph.with_columns([
-            (pl.col("from") + "_" + pl.col("position").cast(pl.Utf8)),
-            (pl.col("to") + "_" + pl.col("position").add(1).cast(pl.Utf8))
-        ]) \
+        kmer_graph = kmer_graph \
         .groupby(["from", "to", "position"]).agg(pl.count().alias("count")) 
     else:
         kmer_graph = kmer_graph \
         .groupby(["from", "to"]).agg(pl.count().alias("count"))
     return kmer_graph
 
-def plot_kmer_graph(kmer_graph, min_connection = 10, ax=None):
-    kmer_graph = kmer_graph.filter(pl.col("count") > min_connection)
+def plot_kmer_graph(kmer_graph, min_connection = 10, ax=None, y_axis = "mean_connections"):
+    kmer_graph = kmer_graph.with_columns([
+            (pl.col("from") + "_" + pl.col("position").cast(pl.Utf8)),
+            (pl.col("to") + "_" + pl.col("position").add(1).cast(pl.Utf8))
+        ]).filter(pl.col("count") > min_connection)
     G = nx.from_pandas_edgelist(kmer_graph, "from", "to", ["count", "position"], create_using=nx.DiGraph)
     pos = {}
     for i in G.nodes(data=True):
-        count = kmer_graph.filter((pl.col("from") == i[0]) | (pl.col("to") == i[0])).mean().get_column("count")[0]
-        pos[i[0]] = (int(i[0].split("_")[1]), count)
+        if y_axis == "mean_connections":
+            yval = kmer_graph.filter((pl.col("from") == i[0]) | (pl.col("to") == i[0])).mean().get_column("count")[0]
+        elif y_axis == "connections":
+            yval = kmer_graph.filter((pl.col("from") == i[0]) | (pl.col("to") == i[0])).sum().get_column("count")[0]
+        else:
+            raise ValueError("y_axis must be 'mean_connections' or 'connections'")
+        pos[i[0]] = (int(i[0].split("_")[1]), yval)
 
     if ax is None:
-        fig, ax = plt.subplots(figsize=(20, 10))
+        fig, ax = plt.subplots(figsize=(15, 8))
     
     counts = [i[2]["count"] for i in G.edges(data=True)]
-    line_width = [int(i/max(counts) * 10) for i in counts]
+    line_width = [i/max(counts) * 10 for i in counts]
     
-    nx.draw_networkx_edges(G, pos, ax=ax, arrows=False, alpha = 1, width = line_width, edge_cmap=mpl.colormaps["cividis_r"], edge_color = counts);
-    nx.draw_networkx_labels(G, pos, ax=ax, bbox=dict(boxstyle="square", fc="w", ec="k"), font_color = "black", labels = {i: i.split("_")[0] for i in pos}, font_size=10, font_family="monospace");
+    nx.draw_networkx_edges(
+        G, pos, ax=ax, 
+        arrows=False, alpha = 1, width = line_width, 
+        edge_cmap=mpl.colormaps["cividis_r"], edge_color = counts
+    )
+    nx.draw_networkx_labels(
+        G, pos, ax=ax, 
+        bbox = dict(boxstyle="square", fc="w", ec="k"),
+        font_color = "black", font_size=10, font_family="monospace",
+        labels = {i: i.split("_")[0] for i in pos}
+    )
+    # Show axis
+    ax.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
+    n_labs = 4
+    window = 25//2
+    x_axis_step = window//n_labs
+    labs_positive = np.arange(0, x_axis_step * n_labs + 1, x_axis_step)
+    tick_label = np.concatenate((-labs_positive, labs_positive))
+    tick_position = tick_label + window
+    ax.set_xticks(tick_position)
+    ax.set_xticklabels(tick_label)
+    ax.set_xlabel("K-mer start position, relative to methylation site")
+    if y_axis == "mean_connections":
+        ax.set_ylabel("Mean connections")
+    elif y_axis == "connections":
+        ax.set_ylabel("Total Connections")
+    ax.collections[0].set_clim(0, None)
+

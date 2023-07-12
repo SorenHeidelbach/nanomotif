@@ -396,21 +396,21 @@ def plot_dna_sequences(sequences, cm_palette="Pastel2"):
     sequences_array = sequences_array.reshape(n_seqs, n_bases)
     
     # Calculate font size
-    font_size = min(200/n_bases, 200/n_seqs)
+    font_size = 15
 
     # Create plot
-    fig, ax = plt.subplots();
+    fig, ax = plt.subplots(figsize=(2 + n_bases*.28, 1 + n_seqs*.28));
     ax.imshow(sequences_array, cmap=cm.get_cmap(cm_palette));
 
     # Set labels for y axis
     ax.set_yticks(np.arange(n_seqs));
-    ax.set_yticklabels(y_tick_labels, fontsize=200/n_seqs);
+    ax.set_yticklabels(y_tick_labels, fontsize=font_size, fontweight="bold");
 
     # Loop over data dimensions and create text annotations
     for i in range(n_seqs):
         for j in range(n_bases):
             ax.text(j, i, m.sequences[i][j], ha="center", va="center", color="black", 
-                    fontsize=font_size, fontweight="bold");
+                    fontsize=font_size);
     
     # Draw line to separate consensus from sequences
     ax.axhline(y=n_seqs-1.5, color="black", linewidth=1);
