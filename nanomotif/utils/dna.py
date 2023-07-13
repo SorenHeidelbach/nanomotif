@@ -2,7 +2,7 @@ import random
 import numpy as np
 import polars as pl
 import networkx as nx
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt 
 import matplotlib as mpl
 import editdistance
 from collections import Counter
@@ -27,7 +27,12 @@ class DNAsequences:
         "W": "W", "K": "M", "M": "K", "B": "V", 
         "D": "H", "H": "D", "V": "B"
     }
+
+    base_to_int = {"A":1, "T":2, "G":3, "C":4, "N":5, "R":6, "Y":7, "S":8, "W":9, "K":10, "M":11, "B":12, "D":13, "H":14, "V":15}
+    int_to_base = {i: n for n, i in base_to_int.items()}
+
     def __init__(self, sequences):
+        assert isinstance(sequences, list), "DNA sequences must be a list"
         sequences = [seq.upper() for seq in sequences]
         self.sequences = sequences
     
@@ -128,7 +133,7 @@ class DNAsequences:
 
     def reverse_complement(self) -> list:
         '''
-        Returns the reverse complement of a sequences
+        Returns the reverse complement of sequences
 
         Returns
         -------
@@ -158,9 +163,9 @@ class DNAsequences:
         '''
         return [(seq.count("G") + seq.count("C")) / len(seq) for seq in self.sequences]
 
-    def edit_distances(self) -> np.ndarray:
+    def levenshtein_distances(self) -> np.ndarray:
         """
-        Calculate the edit distance between all sequences in the DNAsequences object.
+        All vs. all levenshtein distances between sequences in the DNAsequences object.
 
         Returns
         -------
@@ -169,18 +174,267 @@ class DNAsequences:
 
         Examples
         --------
-        >>> DNAsequences(["ATCG", "GCTA", "TACT", "AGCT"]).edit_distances()
-        array([[0., 4., 3., 2.],
-               [4., 0., 3., 2.],
-               [3., 3., 0., 2.],
-               [2., 2., 2., 0.]])
+        >>> DNAsequences(["ATCG", "GCTA", "TACT", "AGCT"]).levenshtein_distances()
+        array([[0, 4, 3, 2],
+               [4, 0, 3, 2],
+               [3, 3, 0, 2],
+               [2, 2, 2, 0]], dtype=int16)
         """
+        lengths = [len(s) for s in self]
+        assert all_equal(lengths), "All sequences must be of equal length"
+
         n = len(self)
-        dists = np.empty(shape = (n, n))
+        distances = np.empty(shape = (n, n), dtype=np.int16)
         for i in range(0, n):
-            for j in range(0, n):
-                dists[i, j] = editdistance.eval(self[i], self[j])
-        return dists
+            for j in range(i, n):
+                d = editdistance.eval(self[i], self[j])
+                distances[i, j] = d
+                distances[j, i] = d
+        return distances
+
+    def sequences_int(self):
+        """
+        Convert stored sequences from strings of ATGC to an array of integers (1, 2, 3, 4).
+
+        Returns
+        -------
+        np.ndarray
+            A numpy array of stored sequences represented as integers.
+
+        Examples
+        --------
+        >>> DNAsequences(['ATGG', 'GGGG', 'CCGT']).sequences_int()
+        array([[1, 2, 3, 3],
+               [3, 3, 3, 3],
+               [4, 4, 3, 2]])
+        >>> DNAsequences(['ATGG', 'GGGGG', 'CCGT']).sequences_int()
+        array([list([1, 2, 3, 3]), list([3, 3, 3, 3, 3]), list([4, 4, 3, 2])],
+              dtype=object)
+        """
+        return np.array(list(map(
+            lambda x: list(map(
+                lambda y: DNAsequences.base_to_int[y], 
+                x
+            )), 
+            self
+        )))
+    
+    def trimmed_sequences(self) -> list:
+        """
+        Trim sequences to the same length as the shortest sequence.
+
+        Returns
+        -------
+        list
+            List of trimmed sequences.
+
+        Examples
+        --------
+        >>> DNAsequences(['ATGG', 'GGGGG', 'CCGT']).trimmed_sequences()
+        ['ATGG', 'GGGG', 'CCGT']
+        >>> DNAsequences(['A', 'ATG', 'CCGTT']).trimmed_sequences()
+        ['A', 'A', 'C']
+        """
+        lengths = [len(s) for s in self]
+        min_length = min(lengths)
+        seqs = [seq[:min_length] for seq in self]
+        return seqs
+
+    def padded_sequences(self, pad: str = "N") -> list:
+        """
+        Pad sequences to the same length with a given character.
+
+        Parameters
+        ----------
+        pad : str, optional
+            Character to pad sequences with. Default is "N".
+            Must be one of IUPAC nucleotides: A, T, C, G, R, Y, S, W, K, M, B, D, H, V, N
+        
+        Returns
+        -------
+        list
+            List of padded sequences.
+
+        Examples
+        --------
+        >>> DNAsequences(['ATGG', 'GGGG', 'CCGT']).padded_sequences()
+        ['ATGG', 'GGGG', 'CCGT']
+        >>> DNAsequences(['ATGG', 'GGGG', 'CCGTT']).padded_sequences(pad = "A")
+        ['ATGGA', 'GGGGA', 'CCGTT']
+        """
+        assert pad in self.iupac, f"pad must be one of {self.iupac}"
+        lengths = [len(s) for s in self]
+        max_length = max(lengths)
+        seqs = [seq + pad * (max_length - len(seq)) for seq in self]
+        return seqs
+
+    def _get_equal_length_sequences(self, trim: bool = True, pad: str = "N") -> list:
+        """
+        Convert all sequences to the same length.
+
+        Args:
+            trim (bool, optional): Whether to trim the end of seuqences to match shortest sequence. Defaults to True.
+            pad (str, optional): Character to pad sequences with. Default is "N".
+                Must be one of IUPAC nucleotides: A, T, C, G, R, Y, S, W, K, M, B, D, H, V, N
+
+        Returns:
+            list: List of sequences of equal length.
+        """
+        if not all_lengths_equal(self):
+            if trim:
+                seqs = self.trimmed_sequences()
+            else:
+                seqs = self.padded_sequences(pad=pad)
+        else:
+            seqs = self.sequences
+        
+        return seqs
+
+    def pssm(self, pseudocount=0, trim=True, pad="N", only_canonical=True):
+        """
+        Calculate the positional frequency of each nucleotide for all sequences.
+
+        Parameters
+        ----------
+        pseudocount : float, optional
+            Pseudocount to be added to each nucleotide count. Default is 0.5.
+        
+        trim : bool, optional
+            Whether to trim the end of seuqences to match shortest sequence. Default is True.
+            Pads with N to match longest sequence if False.
+
+        Returns
+        -------
+        np.ndarray
+            A numpy array of positional frequencies.
+
+        Examples
+        --------
+        >>> DNAsequences(["A", "TA", "CTA", "GTCA"]).pssm()
+        array([[0.25],
+               [0.25],
+               [0.25],
+               [0.25]])
+        >>> DNAsequences(["A", "TA", "CTA", "GTCA"]).pssm(trim=False)
+        array([[0.25, 0.25, 0.25, 0.25],
+               [0.25, 0.5 , 0.  , 0.  ],
+               [0.25, 0.  , 0.25, 0.  ],
+               [0.25, 0.  , 0.  , 0.  ]])
+        >>> DNAsequences(["W", "TK", "CTA", "GBCA"]).pssm(only_canonical=False, trim=False)
+        array([[0.  , 0.  , 0.25, 0.25],
+               [0.25, 0.25, 0.  , 0.  ],
+               [0.25, 0.  , 0.25, 0.  ],
+               [0.25, 0.  , 0.  , 0.  ],
+               [0.  , 0.  , 0.  , 0.  ],
+               [0.  , 0.  , 0.  , 0.  ],
+               [0.  , 0.  , 0.  , 0.  ],
+               [0.25, 0.  , 0.  , 0.  ],
+               [0.  , 0.25, 0.  , 0.  ],
+               [0.  , 0.  , 0.  , 0.  ],
+               [0.  , 0.25, 0.  , 0.  ],
+               [0.  , 0.  , 0.  , 0.  ],
+               [0.  , 0.  , 0.  , 0.  ],
+               [0.  , 0.  , 0.  , 0.  ],
+               [0.  , 0.25, 0.5 , 0.75]])
+        """
+        seqs = self._get_equal_length_sequences(trim=trim, pad=pad)
+        
+        if only_canonical:
+            valid_base = self.bases
+        else:
+            valid_base = self.iupac
+
+        seq_length = len(seqs[0])
+        n_seqs = len(seqs)
+
+        pssm = []
+        for nuc in valid_base:
+            pssm_nuc = []
+            for i in range(seq_length):
+                count = 0
+                for seq in seqs:
+                    if seq[i] == nuc:
+                        count += 1
+                pssm_nuc.append((count + pseudocount)/n_seqs)
+            pssm.append(pssm_nuc)
+        return np.array(pssm)
+
+    def consensus(self, trim=True, pad="N"):
+        """
+        Calculate the consensus sequence of all sequences.
+
+        If equal frequncy is observed, the nucleotide is choosen based on the order of keys in the iupac_dict.
+
+        Returns
+        -------
+        str
+            The consensus sequence.
+
+        Examples
+        --------
+        >>> DNAsequences(['ATGCG', 'TTGCG', 'GCCCG', 'CCCCA']).consensus()
+        'ATGCG'
+        """
+        # Ensure all sequences are of equal length
+        seqs = self._get_equal_length_sequences(trim=trim, pad=pad)
+
+        # Initialize consensus sequence as an empty string
+        consensus_sequence = ''
+
+        # Loop over each position in the sequences
+        for position in range(len(seqs[0])):
+
+            # Create a Counter for each nucleotide at the current position across all sequences
+            nucleotide_counts = Counter(seq[position] for seq in seqs)
+
+            # Determine the most common nucleotide at the current position
+            most_common_nucleotide = nucleotide_counts.most_common(1)[0][0]
+
+            # Append the most common nucleotide to the consensus sequence
+            consensus_sequence += most_common_nucleotide
+
+        return consensus_sequence
+
+    def kmers(self, kmer_size: int) -> list:
+        """
+        Generate all k-mers from a given sequence.
+
+        Parameters
+        ----------
+        kmer_size : int
+            The length of the k-mers.
+
+        Returns
+        -------
+        list
+            A list of k-mers. Each k-mer is a string. The list is empty if kmer_size is greater than the length of the sequence.
+
+        Examples
+        --------
+        >>> DNAsequences(["", "A", "AT", "ATGA"]).kmers(2)
+        [[], [], ['AT'], ['AT', 'TG', 'GA']]
+        """
+        assert isinstance(kmer_size, int), "kmer_size must be an integer"
+        assert kmer_size > 0, "kmer_size must be greater than 0"
+        return [[seq[i:i+kmer_size] for i in range(len(seq) - kmer_size + 1)] for seq in self]
+    
+    def sample_sequences(self, n):
+        """
+        Sample sequences from the DNAsequences object.
+
+        Returns
+        -------
+        list
+            A list of sampled sequences.
+
+        Examples
+        --------
+        >>> random.seed(0)
+        >>> DNAsequences(["A", "TA", "CTA", "GTCA"]).sample_sequences(3)
+        ['GTCA', 'GTCA', 'TA']
+        """
+        return random.choices(self.sequences, k=n)
+
 
 
 def generate_random_dna_sequence(length):
@@ -241,36 +495,6 @@ def sample_seq_at_letter(seq, n, size, letter):
         postions_sampled = random.choices(positions, k=n)
         return [seq[i-size:i+size+1] for i in postions_sampled]
 
-def get_gc_content(seq: str) -> float:
-    '''Returns the GC content of a sequence'''
-    return (seq.count("G") + seq.count("C")) / len(seq)
-
-
-
-def get_kmers(sequence: str, kmer_size: int) -> list:
-    """
-    Generate all k-mers from a given sequence.
-
-    Parameters
-    ----------
-    sequence : str
-        The DNA sequence from which to generate k-mers.
-    kmer_size : int
-        The length of the k-mers.
-
-    Returns
-    -------
-    list
-        A list of all k-mers of given size that can be generated from the input sequence.
-
-    Examples
-    --------
-    >>> get_kmers('ATCGAT', 2)
-    ['AT', 'TC', 'CG', 'GA', 'AT']
-    """
-    return [sequence[i:i+kmer_size] for i in range(len(sequence) - kmer_size + 1)]
-
-
 
 def calculate_enrichment(positive_counts: dict, negative_counts: dict) -> dict:
     """
@@ -327,7 +551,6 @@ def dreme_naive(positive_sequences: list, negative_sequences: list, kmer_size: i
 
     Examples
     --------
-    >>> SequenceEnrichment = SequenceEnrichment(['ATCG', 'GCTA', 'TACG', 'AGCT'])
     >>> positive_sequences = ['ATCG', 'GCTA', 'TACG', 'AGCT']
     >>> negative_sequences = ['CGTA', 'TACG', 'GATC', 'CGAT']
     >>> enrichments = dreme_naive(positive_sequences, negative_sequences, kmer_size=2)
@@ -344,82 +567,221 @@ def dreme_naive(positive_sequences: list, negative_sequences: list, kmer_size: i
 
     return enrichments
 
-def edit_distance(sequences: list) -> np.ndarray:
-    dists = np.empty(shape = (len(sequences), len(sequences)))
-    for i in range(0, len(sequences)):
-        for j in range(0, len(sequences)):
-            dists[i, j] = editdistance.eval(sequences[i], sequences[j])
-    return dists
 
 def get_kmer_graph(sequences, kmer_size = 6, stride = 2, position_aware = True):
-    kmer_graph = pl.DataFrame({"seq":sequences}).with_columns(
-      pl.col("seq").apply(
-        lambda seq: {
-          "from":get_kmers(seq, kmer_size)[::stride][:-1], 
-          "to": get_kmers(seq, kmer_size)[::stride][1:], 
-          "position": range(0, (len(sequences[0]) - kmer_size) - stride + 1, stride)
-        }
-      ).alias("order")
-    ).unnest("order").explode("from", "to", "position")
+    """
+    Get a kmer graph from DNAsequences.
 
+    Args:
+        sequences (List[str]): A list of sequences to build kmer graph.
+        kmer_size (int, optional): The length of kmers to consider. Defaults to 6.
+        stride (int, optional): The step size to take when considering subsequences. Defaults to 2.
+        position_aware (bool, optional): Whether to group by position or not. Defaults to True.
+
+    Returns:
+        DataFrame: A DataFrame representing the kmer graph with columns: 'from', 'to', 'count', ('position').
+            from: The kmer at the start of the edge.
+            to: The kmer at the end of the edge.
+            count: The number of times the edge appears in the sequences (by position if position_aware = True).
+            (position: The position of the kmer in the sequence.)
+
+    Examples:
+    >>> get_kmer_graph(["GATC", "GATG", "GATA", "GATG"], kmer_size = 2, stride = 1, position_aware = True)
+    shape: (4, 4)
+    ┌──────┬─────┬──────────┬───────┐
+    │ from ┆ to  ┆ position ┆ count │
+    │ ---  ┆ --- ┆ ---      ┆ ---   │
+    │ str  ┆ str ┆ i64      ┆ u32   │
+    ╞══════╪═════╪══════════╪═══════╡
+    │ AT   ┆ TA  ┆ 1        ┆ 1     │
+    │ AT   ┆ TC  ┆ 1        ┆ 1     │
+    │ AT   ┆ TG  ┆ 1        ┆ 2     │
+    │ GA   ┆ AT  ┆ 0        ┆ 4     │
+    └──────┴─────┴──────────┴───────┘
+
+    >>> get_kmer_graph(["GATC", "GATG", "GATA", "GATG"], kmer_size = 3, stride = 1, position_aware = False)
+    shape: (3, 3)
+    ┌──────┬─────┬───────┐
+    │ from ┆ to  ┆ count │
+    │ ---  ┆ --- ┆ ---   │
+    │ str  ┆ str ┆ u32   │
+    ╞══════╪═════╪═══════╡
+    │ GAT  ┆ ATA ┆ 1     │
+    │ GAT  ┆ ATC ┆ 1     │
+    │ GAT  ┆ ATG ┆ 2     │
+    └──────┴─────┴───────┘
+
+    """
+    assert min(len(seq) for seq in sequences) >= kmer_size + stride, "All sequences must be at least as long as kmer_size+stride"
+    # Initialize a DataFrame with sequences
+    kmer_graph = pl.DataFrame({"seq": sequences})
+
+    # Define an apply function for getting kmers
+    def get_kmers_and_positions(seq):
+        kmers = DNAsequences([seq]).kmers(kmer_size)[0]
+        kmers_from = kmers[::stride][:-1]
+        kmers_to = kmers[::stride][1:]
+        positions = list(range(0, (len(seq) - kmer_size) - stride + 1, stride))
+        
+        return {"from": kmers_from, "to": kmers_to, "position": positions}
+    
+    # Apply the function to the sequence column
+    kmer_graph = kmer_graph.with_columns(pl.col("seq").apply(get_kmers_and_positions).alias("order"))
+    kmer_graph = kmer_graph.unnest("order").explode("from", "to", "position")
+
+    # Group by according to the position_aware flag
     if position_aware:
-        kmer_graph = kmer_graph \
-        .groupby(["from", "to", "position"]).agg(pl.count().alias("count")) 
+        kmer_graph = kmer_graph.groupby(["from", "to", "position"]).agg(pl.count().alias("count")) 
     else:
-        kmer_graph = kmer_graph \
-        .groupby(["from", "to"]).agg(pl.count().alias("count"))
-    return kmer_graph
+        kmer_graph = kmer_graph.groupby(["from", "to"]).agg(pl.count().alias("count"))
+    
+    return kmer_graph.sort("from", "to", "count")
 
 def plot_kmer_graph(kmer_graph, min_connection = 10, ax=None, y_axis = "mean_connections"):
+    """
+    Plots a K-mer graph. Nodes in the graph represent kmers and edges represent connections between kmers. 
+    The width of the edges is proportional to the number of connections between kmers. The y-coordinate of
+    each node is proportional to the number of connections/mean connections to that node.
+    The x-coordinate of each node is the position of the kmer in the sequence.
+
+    Args:
+        kmer_graph (DataFrame): A DataFrame representing a graph with columns 'from', 'to', 'count', 'position'. 
+            'from' and 'to' represent kmers, 'count' represents the number of connections, 'position' represents 
+            the position of kmers.
+        min_connection (int, optional): The minimum number of connections to include in the graph. Defaults to 10.
+        ax (AxesSubplot, optional): Matplotlib Axes object to draw the plot onto, otherwise uses the current Axes. 
+            Defaults to None.
+        y_axis (str, optional): Method of calculating the y-coordinate for each node. Can be either 'mean_connections' 
+            (the mean of the count of connections) or 'connections' (the total count of connections). Defaults to 
+            'mean_connections'.
+
+    Raises:
+        ValueError: If `y_axis` is neither 'mean_connections' nor 'connections'.
+        AssertionError: If `kmer_graph` does not have columns 'from', 'to', 'count', 'position'.
+    
+    Returns:
+        None
+
+    This function will not return anything but will display the K-mer graph using matplotlib.
+    """
+    # Check if the kmer_graph contains all necessary columns
+    required_columns = ['from', 'to', 'count', 'position']
+    for column in required_columns:
+        assert column in kmer_graph.columns, f"kmer_graph must have a column named '{column}'"
+        
+    assert y_axis in ["mean_connections", "connections"], "y_axis must be 'mean_connections' or 'connections'"
+    
+    # Process the kmer_graph dataframe
     kmer_graph = kmer_graph.with_columns([
             (pl.col("from") + "_" + pl.col("position").cast(pl.Utf8)),
             (pl.col("to") + "_" + pl.col("position").add(1).cast(pl.Utf8))
         ]).filter(pl.col("count") > min_connection)
-    G = nx.from_pandas_edgelist(kmer_graph, "from", "to", ["count", "position"], create_using=nx.DiGraph)
-    pos = {}
-    for i in G.nodes(data=True):
-        if y_axis == "mean_connections":
-            yval = kmer_graph.filter((pl.col("from") == i[0]) | (pl.col("to") == i[0])).mean().get_column("count")[0]
-        elif y_axis == "connections":
-            yval = kmer_graph.filter((pl.col("from") == i[0]) | (pl.col("to") == i[0])).sum().get_column("count")[0]
-        else:
-            raise ValueError("y_axis must be 'mean_connections' or 'connections'")
-        pos[i[0]] = (int(i[0].split("_")[1]), yval)
 
+    # Convert dataframe to NetworkX DiGraph
+    G = nx.from_pandas_edgelist(kmer_graph, "from", "to", ["count", "position"], create_using=nx.DiGraph)
+
+    # Calculate position of each node
+    pos = {}
+    for node in G.nodes(data=True):
+        filter_condition = (pl.col("from") == node[0]) | (pl.col("to") == node[0])
+        if y_axis == "mean_connections":
+            yval = kmer_graph.filter(filter_condition).mean().get_column("count")[0]
+        else:
+            yval = kmer_graph.filter(filter_condition).sum().get_column("count")[0]
+        pos[node[0]] = (int(node[0].split("_")[1]), yval)
+
+    # Calculate edge widths
+    counts = [edge[2]["count"] for edge in G.edges(data=True)]
+    line_width = [count / max(counts) * 10 for count in counts]
+
+    # If no Axes object provided, create a new one
     if ax is None:
-        fig, ax = plt.subplots(figsize=(15, 8))
-    
-    counts = [i[2]["count"] for i in G.edges(data=True)]
-    line_width = [i/max(counts) * 10 for i in counts]
-    
+        _, ax = plt.subplots(figsize=(15, 8))
+
+    # Draw edges
     nx.draw_networkx_edges(
-        G, pos, ax=ax, 
-        arrows=False, alpha = 1, width = line_width, 
-        edge_cmap=mpl.colormaps["cividis_r"], edge_color = counts
-    )
-    nx.draw_networkx_labels(
-        G, pos, ax=ax, 
-        bbox = dict(boxstyle="square", fc="w", ec="k"),
-        font_color = "black", font_size=10, font_family="monospace",
-        labels = {i: i.split("_")[0] for i in pos}
-    )
-    # Show axis
+        G, pos, ax=ax, arrows=False, alpha = 1, width = line_width,
+        edge_cmap=mpl.colormaps["cividis_r"], edge_color = counts)
+
+    # Draw labels
+    labels = {node: node.split("_")[0] for node in pos}
+    nx.draw_networkx_labels(G, pos, ax=ax, 
+                            bbox=dict(boxstyle="square", fc="w", ec="k"),
+                            font_color="black", font_size=10, font_family="monospace",
+                            labels=labels)
+
+    # Set axis ticks and labels
     ax.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
-    n_labs = 4
-    window = 25//2
-    x_axis_step = window//n_labs
-    labs_positive = np.arange(0, x_axis_step * n_labs + 1, x_axis_step)
-    tick_label = np.concatenate((-labs_positive, labs_positive))
-    tick_position = tick_label + window
-    ax.set_xticks(tick_position)
-    ax.set_xticklabels(tick_label)
     ax.set_xlabel("K-mer start position, relative to methylation site")
-    if y_axis == "mean_connections":
-        ax.set_ylabel("Mean connections")
-    elif y_axis == "connections":
-        ax.set_ylabel("Total Connections")
+    ax.set_ylabel("Mean connections" if y_axis == "mean_connections" else "Total Connections")
+
+    # Set color range for edge colors
     ax.collections[0].set_clim(0, None)
+
+
+def all_equal(iterator):
+    """
+    Checks whether all elements in an iterable are equal.
+
+    The function will return True even if the iterable is empty. It works with any iterable that supports 
+    equality comparison, including strings, lists, and tuples.
+
+    Args:
+        iterator (Iterable): An iterable object.
+
+    Returns:
+        bool: True if all elements are equal or if iterable is empty, False otherwise.
+
+    Examples:
+    >>> all_equal([1, 1, 1])
+    True
+    >>> all_equal('aaa')
+    True
+    >>> all_equal([])
+    True
+    >>> all_equal([1, 2])
+    False
+    """
+    iterator = iter(iterator)
+    try:
+        first = next(iterator)
+    except StopIteration:
+        return True
+    return all(first == x for x in iterator)
+
+def all_lengths_equal(iterator):
+    """
+    Checks whether the lengths of all elements in an iterable are equal.
+
+    The function will return True even if the iterable is empty. It requires that the elements of the iterable
+    also be iterable, such as strings, lists, and tuples.
+
+    Args:
+        iterator (Iterable): An iterable object containing other iterable elements.
+
+    Returns:
+        bool: True if all lengths are equal or if iterable is empty, False otherwise.
+
+    Examples:
+    >>> all_lengths_equal(['abc', 'def', 'ghi'])
+    True
+    >>> all_lengths_equal([[1, 2, 3], [4, 5, 6]])
+    True
+    >>> all_lengths_equal([])
+    True
+    >>> all_lengths_equal(['abc', 'de'])
+    False
+    """
+    iterator = iter(iterator)
+    try:
+        first = len(next(iterator))
+    except StopIteration:
+        return True
+    return all(first == len(x) for x in iterator)
+
 
 if __name__ == "__main__":
     import doctest
     doctest.testmod()
+
+
