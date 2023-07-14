@@ -55,22 +55,22 @@ seq_enrichment.pssm()
 
 
 
-    array([[2.48375e-01, 2.48825e-01, 2.50575e-01, 2.50325e-01, 2.47775e-01,
-            2.49725e-01, 1.03250e-02, 9.69425e-01, 2.50000e-05, 1.02750e-02,
-            2.50775e-01, 2.52325e-01, 2.54825e-01, 2.48625e-01, 2.51775e-01,
-            2.47525e-01, 2.51275e-01],
-           [2.54225e-01, 2.47725e-01, 2.52825e-01, 2.47075e-01, 2.53825e-01,
-            2.46925e-01, 9.07500e-03, 1.02250e-02, 9.81925e-01, 2.50000e-05,
-            2.50275e-01, 2.46675e-01, 2.48725e-01, 2.48875e-01, 2.52225e-01,
-            2.46975e-01, 2.48575e-01],
-           [2.44875e-01, 2.52025e-01, 2.47925e-01, 2.49625e-01, 2.49275e-01,
-            2.50525e-01, 9.80675e-01, 1.11750e-02, 9.32500e-03, 9.77500e-03,
-            2.53375e-01, 2.52075e-01, 2.51175e-01, 2.47175e-01, 2.45725e-01,
-            2.54275e-01, 2.48625e-01],
-           [2.52625e-01, 2.51525e-01, 2.48775e-01, 2.53075e-01, 2.49225e-01,
-            2.52925e-01, 2.50000e-05, 9.27500e-03, 8.82500e-03, 9.80025e-01,
-            2.45675e-01, 2.49025e-01, 2.45375e-01, 2.55425e-01, 2.50375e-01,
-            2.51325e-01, 2.51625e-01]])
+    array([[2.54175e-01, 2.49475e-01, 2.54875e-01, 2.46725e-01, 2.58725e-01,
+            2.49475e-01, 9.57500e-03, 9.70075e-01, 2.50000e-05, 9.17500e-03,
+            2.55525e-01, 2.50025e-01, 2.51275e-01, 2.52025e-01, 2.50525e-01,
+            2.53625e-01, 2.47625e-01],
+           [2.45375e-01, 2.50975e-01, 2.47525e-01, 2.52125e-01, 2.48675e-01,
+            2.48275e-01, 9.57500e-03, 1.06250e-02, 9.79025e-01, 2.50000e-05,
+            2.43125e-01, 2.50175e-01, 2.50925e-01, 2.54425e-01, 2.48475e-01,
+            2.52175e-01, 2.46775e-01],
+           [2.49725e-01, 2.48625e-01, 2.48175e-01, 2.52775e-01, 2.48525e-01,
+            2.51775e-01, 9.80925e-01, 1.06750e-02, 1.09250e-02, 1.01750e-02,
+            2.51575e-01, 2.52525e-01, 2.48675e-01, 2.43225e-01, 2.48125e-01,
+            2.47225e-01, 2.50575e-01],
+           [2.50825e-01, 2.51025e-01, 2.49525e-01, 2.48475e-01, 2.44175e-01,
+            2.50575e-01, 2.50000e-05, 8.72500e-03, 1.01250e-02, 9.80725e-01,
+            2.49875e-01, 2.47375e-01, 2.49225e-01, 2.50425e-01, 2.52975e-01,
+            2.47075e-01, 2.55125e-01]])
 
 
 
@@ -83,7 +83,7 @@ seq_enrichment.consensus()
 
 
 
-    'TGTCTCGATCGAACTGC'
+    'ACAGAGGATCAGATCAC'
 
 
 
@@ -162,7 +162,7 @@ exmaple_kmer_graph
   text-align: right;
 }
 </style>
-<small>shape: (776, 4)</small><table border="1" class="dataframe"><thead><tr><th>from</th><th>to</th><th>position</th><th>count</th></tr><tr><td>str</td><td>str</td><td>i64</td><td>u32</td></tr></thead><tbody><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>4</td><td>8</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>9</td><td>17</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>5</td><td>50</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>14</td><td>276</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>1</td><td>283</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>10</td><td>297</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>3</td><td>304</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>13</td><td>304</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>2</td><td>311</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>0</td><td>314</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>11</td><td>319</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>12</td><td>334</td></tr><tr><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TG&quot;</td><td>4</td><td>1230</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>6</td><td>1</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>4</td><td>9</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>11</td><td>290</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>12</td><td>292</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>14</td><td>297</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>2</td><td>301</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>1</td><td>309</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>10</td><td>312</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>13</td><td>316</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>3</td><td>318</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>0</td><td>330</td></tr></tbody></table></div>
+<small>shape: (776, 4)</small><table border="1" class="dataframe"><thead><tr><th>from</th><th>to</th><th>position</th><th>count</th></tr><tr><td>str</td><td>str</td><td>i64</td><td>u32</td></tr></thead><tbody><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>4</td><td>9</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>9</td><td>17</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>5</td><td>50</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>3</td><td>300</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>2</td><td>310</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>11</td><td>310</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>10</td><td>313</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>14</td><td>318</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>12</td><td>322</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>1</td><td>324</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>0</td><td>332</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>13</td><td>340</td></tr><tr><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>5</td><td>1</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>6</td><td>5</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>4</td><td>14</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>13</td><td>293</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>3</td><td>299</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>14</td><td>302</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>12</td><td>304</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>1</td><td>306</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>10</td><td>310</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>0</td><td>317</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>11</td><td>331</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>2</td><td>344</td></tr></tbody></table></div>
 
 
 
@@ -237,6 +237,12 @@ all_connected = SequenceEnrichment(
 )
 all_connected.plot_enrichment();
 ```
+
+
+    
+![png](README_files/README_12_0.png)
+    
+
 
 
 ```python
