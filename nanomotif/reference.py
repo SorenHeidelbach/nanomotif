@@ -1,9 +1,8 @@
 
 import re
 import numpy as np
-from nanomotif.utils.dna import reverse_complement, get_gc_content
-from nanomotif.utils.utils import distance_to_nearest_value_in_arrays
-
+from nanomotif.utils import distance_to_nearest_value_in_arrays
+from nanomotif.dna import DNAsequences
 class Reference:
     def __init__(self, path: str = None, sequences: dict = None, **kwargs):
         self.path = path

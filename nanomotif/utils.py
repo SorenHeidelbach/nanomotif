@@ -1,3 +1,4 @@
+#%%
 import numpy as np
 
 def find_nearest_value(array, x):
@@ -108,3 +109,78 @@ def distance_to_nearest_value_in_arrays(array_from, array_to):
     for i, element in enumerate(array_from):
         distances[i] = distance_to_nearest_value(array_to, element)
     return distances
+
+
+def flatten_list(nested_list):
+    flat_list = []
+    for elem in nested_list:
+        if isinstance(elem, list):
+            flat_list.extend(flatten_list(elem))
+        else:
+            flat_list.append(elem)
+    return flat_list
+
+
+
+
+def all_equal(iterator):
+    """
+    Checks whether all elements in an iterable are equal.
+
+    The function will return True even if the iterable is empty. It works with any iterable that supports 
+    equality comparison, including strings, lists, and tuples.
+
+    Args:
+        iterator (Iterable): An iterable object.
+
+    Returns:
+        bool: True if all elements are equal or if iterable is empty, False otherwise.
+
+    Examples:
+    >>> all_equal([1, 1, 1])
+    True
+    >>> all_equal('aaa')
+    True
+    >>> all_equal([])
+    True
+    >>> all_equal([1, 2])
+    False
+    """
+    iterator = iter(iterator)
+    try:
+        first = next(iterator)
+    except StopIteration:
+        return True
+    return all(first == x for x in iterator)
+
+def all_lengths_equal(iterator):
+    """
+    Checks whether the lengths of all elements in an iterable are equal.
+
+    The function will return True even if the iterable is empty. It requires that the elements of the iterable
+    also be iterable, such as strings, lists, and tuples.
+
+    Args:
+        iterator (Iterable): An iterable object containing other iterable elements.
+
+    Returns:
+        bool: True if all lengths are equal or if iterable is empty, False otherwise.
+
+    Examples:
+    >>> all_lengths_equal(['abc', 'def', 'ghi'])
+    True
+    >>> all_lengths_equal([[1, 2, 3], [4, 5, 6]])
+    True
+    >>> all_lengths_equal([])
+    True
+    >>> all_lengths_equal(['abc', 'de'])
+    False
+    """
+    iterator = iter(iterator)
+    try:
+        first = len(next(iterator))
+    except StopIteration:
+        return True
+    return all(first == len(x) for x in iterator)
+
+# %%

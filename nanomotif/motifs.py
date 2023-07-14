@@ -1,21 +1,18 @@
+# %%
+from typing import List, Union, Optional
 import numpy as np
 import hdbscan
-import copy
 import matplotlib.pyplot as plt
-
-from collections import Counter
 from matplotlib import cm
 from scipy.stats import entropy
 from itertools import compress
-
-from nanomotif.utils.dna import dreme_naive, generate_random_dna_sequence 
-
-
-class SequenceEnrichment:
+import nanomotif.dna as dna
+from nanomotif.dna import DNAsequences
+from nanomotif.utils import all_lengths_equal
+# %%
+class SequenceEnrichment(DNAsequences):
     """
     This class provides functionality to analyse a set of equal length DNA sequences for sequence enrichment.
-    It supports various functionalities, such as calculating positional frequency of each nucleotide, 
-    extracting consensus sequence, sequence clustering, positional Kullback-Leibler divergence and more.
 
     Parameters
     ----------
@@ -26,19 +23,6 @@ class SequenceEnrichment:
     ----------
     sequences : list
         Stores the input sequences.
-    seq_length : int
-        Length of a single sequence. All sequences should be of this length.
-    nuc_to_int : dict
-        Mapping of nucleotide to integer.
-    int_to_nuc : dict
-        Mapping of integer to nucleotide.
-    clusters : HDBSCAN
-        HDBSCAN clustering object of sequences based on manhattan distance.
-
-    Raises
-    ------
-    AssertionError
-        If the sequences are not of equal length or there are fewer than 2 sequences.
 
     Examples
     --------
@@ -46,17 +30,37 @@ class SequenceEnrichment:
     >>> seqs.sequences
     ['ATCG', 'GCTA', 'TACG']
     """
-    def __init__(self, sequences: list):
-        assert len(sequences) >= 2, "SequenceEnrichment much have at least 2 sequences"
-        self.sequences = sequences
-        self.seq_length = len(sequences[0])
-        assert  all([self.seq_length == len(i) for i in self.sequences ]) , "Sequences are not all the same length"
+    def __init__(self, sequences: List[str]):
+        assert isinstance(sequences, list), "DNA sequences must be a list"
+        sequences = [seq.upper() for seq in sequences]
+        super().__init__(sequences)
+        self.kl_prior = np.ones((4, self.seq_length))/4
 
-        self.nuc_to_int = {"A":1, "T":2, "G":3, "C":4, "N":5, "R":6, "Y":7, "S":8, "W":9, "K":10, "M":11, "B":12, "D":13, "H":14, "V":15}
-        self.int_to_nuc = {i: n for n, i in self.nuc_to_int.items()}
-
-        # KL prior is initialised as a uniform prior
-        self.kl_prior = np.full_like(self.pssm(), 0.25)
+    @DNAsequences.sequences.setter
+    def sequences(self, value: List[str]):
+        self.sequence_alphabet = list(set("".join(value)))
+        super()._check_sequences(value)
+        assert all_lengths_equal(value), "All sequences must be of equal length"
+        self.seq_length = len(value[0])
+        self._sequences = value
+    
+    @property
+    def kl_prior(self):
+        return self._kl_prior
+    
+    @kl_prior.setter
+    def kl_prior(self, value: np.ndarray):
+        assert value.shape == (4, self.seq_length), "Prior shape does not match (should be [4, seq_length])"
+        self._kl_prior = value
+    
+    @property
+    def kl_kmer_prior(self):
+        return self._kl_prior
+    
+    @kl_kmer_prior.setter
+    def kl_kmer_prior(self, value: np.ndarray):
+        assert value.shape[1] == self.seq_length, "K-mer prior shape does not match (should be [n_kmers, seq_length])"
+        self._kl_prior = value
 
     def seq_to_int(self):
         """
@@ -79,7 +83,7 @@ class SequenceEnrichment:
         for i in range(len(self.sequences)):
             r = []
             for j in range(self.seq_length):
-                r.append(self.nuc_to_int[self.sequences[i][j]])
+                r.append(self.base_to_int[self.sequences[i][j]])
             sequences_int.append(r)
         return np.array(sequences_int)
 
@@ -116,7 +120,7 @@ class SequenceEnrichment:
         """
         Calculate the consensus sequence of all sequences.
 
-        If equal frequncy is observed, the nucleotide is choosen based on the order of keys SequenceEnrichment.nuc_to_int.keys()
+        If equal frequncy is observed, the nucleotide is choosen based on the order of keys SequenceEnrichment.base_to_int.keys()
 
         Returns
         -------
@@ -128,14 +132,14 @@ class SequenceEnrichment:
         >>> seqs = SequenceEnrichment(['ATGCG', 'TTGCG', 'GCCCG', 'CCCCA'])
         >>> seqs.consensus()
         'ATGCG'
-        >>> seqs.consensus()[0] == list(seqs.nuc_to_int.keys())[0]
+        >>> seqs.consensus()[0] == list(seqs.base_to_int.keys())[0]
         True
         """
         sequences_int = self.seq_to_int()
         consensus = []
         for position in range(self.seq_length):
             most_common_nucleotide_index = np.argmax(np.bincount(sequences_int[:, position]))
-            consensus.append(self.int_to_nuc[most_common_nucleotide_index])
+            consensus.append(self.int_to_base[most_common_nucleotide_index])
         return "".join(consensus)
 
     def update_kl_prior(self, prior):
@@ -160,7 +164,7 @@ class SequenceEnrichment:
     
         return entropy(self.pssm(), self.kl_prior)
     
-    def kl_masked_consensus(self, min_kl=0.5):
+    def kl_masked_consensus(self, min_kl=0.5, mask = "N"):
         """
         Calculate the consensus sequence of all sequences with positions with low Kullback-Liebler divergence masked by ".".
 
@@ -178,16 +182,16 @@ class SequenceEnrichment:
         --------
         >>> seqs = SequenceEnrichment(['ATCG', 'GTTA', 'TTCG', 'ATCT', 'ATCT', 'ATCT'])
         >>> seqs.kl_masked_consensus()
-        '.T..'
+        'NTNN'
         """
 
         consensus_array = np.array([*self.consensus()])
-        consensus_array[self.kl_divergence() < min_kl] = "."
+        consensus_array[self.kl_divergence() < min_kl] = mask
         return "".join(consensus_array)
 
-    def kl_masked_sequences(self, min_kl=0.5):
+    def kl_masked_sequences(self, min_kl=0.2, mask = "N"):
         """
-        Mask sequences with low Kullback-Liebler divergence with ".".
+        Mask sequences with low Kullback-Liebler divergence with `mask`.
 
         Parameters
         ----------
@@ -203,18 +207,18 @@ class SequenceEnrichment:
         --------
         >>> seqs = SequenceEnrichment(['ATCG', 'GTTA', 'TTCG', 'ATCT', 'ATCT', 'ATCT'])
         >>> seqs.kl_masked_sequences()
-        ['ATCG', '.TT.', 'TTCG', 'ATCT', 'ATCT', 'ATCT']
+        ['ATCN', 'GTTN', 'TTCN', 'ATCN', 'ATCN', 'ATCN']
         """
         sequences_array = np.array([[*seq] for seq in self.sequences])
-        sequences_array[:, self.kl_divergence() < min_kl] = "."
-        return sequences_array
+        sequences_array[:, self.kl_divergence() < min_kl] = mask
+        return ["".join(s) for s in  sequences_array.tolist()]
 
     def get_motif_candidates(self, min_kl=0.2, padded=True):
         enriched_positions = self.kl_divergence() > min_kl
         enriched_bases = self.kl_prior < self.pssm()
 
         motif_candidates = [""]
-        bases_order = np.array(list(self.int_to_nuc.values())[0:4])
+        bases_order = np.array(list(self.int_to_base.values())[0:4])
         for i in range(enriched_bases.shape[1]):
             if bool(enriched_positions[i]):
                 bases_to_add = bases_order[enriched_bases[:, i]]
@@ -251,8 +255,6 @@ class SequenceEnrichment:
         >>> HDBSCAN = seqs.cluster(min_cluster_size = 2)
         >>> type(seqs.clusters)
         <class 'dict'>
-        >>> type(seqs.clusters[0])
-        <class 'nanomotif.motifs.SequenceEnrichment'>
         >>> seqs.clusters[0].sequences
         ['GATG', 'GATC']
         >>> seqs.clusters[1].sequences
@@ -279,10 +281,10 @@ class SequenceEnrichment:
 
     def dreme(self, kmer_size=4):
         positives = self.sequences
-        negatives = [generate_random_dna_sequence(self.seq_length) for _ in range(len(self.sequences))]
-        return dreme_naive(positives, negatives, kmer_size)
+        negatives = [dna.generate_random_dna_sequence(self.seq_length) for _ in range(len(self.sequences))]
+        return dna.dreme_naive(positives, negatives, kmer_size)
 
-    def plot_enrichment(self, ax=None, min_kl=0.5):
+    def plot_enrichment(self, ax=None, min_kl=0.5, center_x_axis=True):
         """
         Method to plot the positional conservation of DNA sequences in the object.
 
@@ -300,129 +302,125 @@ class SequenceEnrichment:
         
         # If no Axes object provided, create a new figure and axes
         if ax is None:
-            fig, ax = plt.subplots()
+            _, ax = plt.subplots()
 
         # Calculate positional frequency
         positional_freq = self.pssm(pseudocount=0)
 
         # Plot positional frequencies for each nucleotide
         for i in range(1,5):
-            ax.plot(positional_freq[i-1], label=f"{self.int_to_nuc[i]}", linewidth=2, c=cm.cubehelix(i/5))
+            ax.plot(positional_freq[i-1], label=f"{self.int_to_base[i]}", linewidth=2, c=cm.cubehelix(i/5))
 
         # Plot Kullback-Leibler divergence
         ax.plot(self.kl_divergence(), "--", label="KL", color="black")
         ax.axhline(y=min_kl, ls="--", color="grey", label="KL lim")
 
         # Add text annotations for masked consensus sequence
-        for nuc, pos in zip(self.kl_masked_consensus(min_kl=min_kl), range(int(self.seq_length))):
-            ax.text(pos, -0.01, nuc, color="black", fontsize=10, va="top", ha="center")
+        for base, pos in zip(self.kl_masked_consensus(min_kl=min_kl), range(int(self.seq_length))):
+            ax.text(pos, -0.01, base, color="black", fontsize=10, va="top", ha="center")
 
         # Configure x-axis labels and ticks
-        n_labs = 4
-        window = self.seq_length//2
-        x_axis_step = window//n_labs
-        labs_positive = np.arange(0, x_axis_step * n_labs + 1, x_axis_step)
-        tick_label = np.concatenate((-labs_positive, labs_positive))
-        tick_position = tick_label + window
-        ax.set_xticks(tick_position)
-        ax.set_xticklabels(tick_label)
-
+        if center_x_axis:
+            n_labs = min(4, (self.seq_length-1)//2) 
+            window = (self.seq_length-1)//2
+            x_axis_step = max(window//n_labs, 1)
+            labs_positive = np.arange(0, x_axis_step * n_labs + 1, x_axis_step)
+            tick_label = np.concatenate((-labs_positive, labs_positive))
+            tick_position = tick_label + window
+            ax.set_xticks(tick_position)
+            ax.set_xticklabels(tick_label)
+            ax.set_xlabel("Relative Position")
+        else:
+            ax.set_xticks(np.arange(0, self.seq_length, 1))
+            ax.set_xlabel("Position")
         # Set title and labels
         ax.set_title(f"Number of sequences: {len(self.sequences)}")
-        ax.set_xlabel("Relative Position")
         ax.set_ylabel("Frequency/KL Divergence")
 
         return ax
     
-    def plot_enrichment_with_prior(self, min_kl=0.5):
+    def plot_enrichment_with_prior(self, min_kl=0.5, center_x_axis=True):
 
         plot, ax = plt.subplots(1, 2, figsize=(10, 5), sharey=True)
-        self.plot_enrichment(min_kl = min_kl, ax=ax[0])
+        self.plot_enrichment(min_kl = min_kl, ax=ax[0], center_x_axis=center_x_axis)
 
         for i in range(self.kl_prior.shape[0]):
-            ax[1].plot(self.kl_prior[i, :] + (i/120), label=f"{self.int_to_nuc[i+1]}", linewidth=2, c=cm.cubehelix((i+1)/5))
+            ax[1].plot(self.kl_prior[i, :] + (i/120), label=f"{self.int_to_base[i+1]}", linewidth=2, c=cm.cubehelix((i+1)/5))
 
-        # Configure x-axis labels and ticks
-        n_labs = 4
-        window = self.seq_length//2
-        x_axis_step = window//n_labs
-        labs_positive = np.arange(0, x_axis_step * n_labs + 1, x_axis_step)
-        tick_label = np.concatenate((-labs_positive, labs_positive))
-        tick_position = tick_label + window
-        ax[1].set_xticks(tick_position)
-        ax[1].set_xticklabels(tick_label)
-        ax[1].set_xlabel("Relative Position")
+
+        if center_x_axis:
+            n_labs = min(4, (self.seq_length-1)//2) 
+            window = (self.seq_length-1)//2
+            x_axis_step = max(window//n_labs, 1)
+            labs_positive = np.arange(0, x_axis_step * n_labs + 1, x_axis_step)
+            tick_label = np.concatenate((-labs_positive, labs_positive))
+            tick_position = tick_label + window
+            ax[1].set_xticks(tick_position)
+            ax[1].set_xticklabels(tick_label)
+            ax[1].set_xlabel("Relative Position")
+        else:
+            ax[1].set_xticks(np.arange(0, self.seq_length, 1))
+            ax[1].set_xlabel("Position")
+
         ax[1].set_title("Prior")
 
         ax[0].legend()
         plot.tight_layout()
 
         return plot, ax
-
-
-
-def plot_dna_sequences(sequences, cm_palette="Pastel2"):
-    """
-    Function to plot DNA sequences with a consensus sequence.
     
-    Parameters:
-    sequences (list): A list of DNA sequences to be plotted.
-    cm_palette (str): A color palette to use for the plot, default is "Pastel2".
-
-    Returns:
-    None
-    
-    The function will plot DNA sequences in a form of heatmap and add a consensus sequence at the bottom. 
-    The x-axis represents the position in the sequence, and the y-axis represents individual sequences and the consensus.
-
-    >>> sequences = ['ATGCGAC', 'ATTCGAC', 'ATGCGAT', 'ATGCGAC']
-    >>> plot_dna_sequences(sequences)
-    """
-    
-    # Create SequenceEnrichment and append consensus sequence
-    m = SequenceEnrichment(copy.copy(sequences))
-    m.sequences.append(m.consensus())
-
-    n_seqs, n_bases = len(m.sequences), len(m.sequences[0])
-
-    # Generate labels for sequences
-    y_tick_labels = [f"Seq {i}" for i in range(n_seqs-1)] + ["Consensus"]
-    
-    # Define mapping from nucleotide bases to integers
-    base_to_int = {"A": 1, "G": 2, "C": 3, "T": 4}
-
-    # Create 2D array of sequences
-    sequences_array = np.array([base_to_int[n] for seq in m.sequences for n in seq])
-    sequences_array = sequences_array.reshape(n_seqs, n_bases)
-    
-    # Calculate font size
-    font_size = 15
-
-    # Create plot
-    fig, ax = plt.subplots(figsize=(2 + n_bases*.28, 1 + n_seqs*.28));
-    ax.imshow(sequences_array, cmap=cm.get_cmap(cm_palette));
-
-    # Set labels for y axis
-    ax.set_yticks(np.arange(n_seqs));
-    ax.set_yticklabels(y_tick_labels, fontsize=font_size, fontweight="bold");
-
-    # Loop over data dimensions and create text annotations
-    for i in range(n_seqs):
-        for j in range(n_bases):
-            ax.text(j, i, m.sequences[i][j], ha="center", va="center", color="black", 
-                    fontsize=font_size);
-    
-    # Draw line to separate consensus from sequences
-    ax.axhline(y=n_seqs-1.5, color="black", linewidth=1);
-    
-    # Adjust plot layout and display
-    fig.tight_layout()
-
-    return ax
+    def plot_kmer_graph(self, kmer_size = 3, stride = 1, min_connection=0, kl_threshold=None):
+        if kl_threshold is not None:
+            seqs = self.kl_masked_sequences(min_kl=kl_threshold)
+        else:
+            seqs = self.sequences
+        kmer_graph = dna.kmer_graph(seqs, kmer_size=kmer_size, stride=stride)
+        dna.plot_kmer_graph(kmer_graph, min_connection=min_connection)
 
 
 
-
+# %%
 if __name__ == "__main__":
     import doctest
-    doctest.testmod(verbose=True)
+    doctest.testmod()
+
+    dna.generate_random_dna_sequence(10)
+    enriched_seqs_CTGAAG = [ 
+        dna.generate_random_dna_sequence(5) +
+        dna.generate_random_dna_sequence(1, alphabet=["C"]*97 + ["T", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["T"]*97 + ["A", "C", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["G"]*97 + ["T", "C", "A"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["A"]*97 + ["T", "C", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["A"]*97 + ["T", "C", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["G"]*97 + ["T", "C", "A"]) +
+        dna.generate_random_dna_sequence(5)
+        for _ in range(500)
+    ]
+    enriched_seqs_CTTCAG = [ 
+        dna.generate_random_dna_sequence(5) +
+        dna.generate_random_dna_sequence(1, alphabet=["C"]*97 + ["T", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["T"]*97 + ["A", "C", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["T"]*97 + ["G", "C", "A"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["C"]*97 + ["T", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["A"]*97 + ["T", "C", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["G"]*97 + ["T", "C", "A"]) +
+        dna.generate_random_dna_sequence(5)
+        for _ in range(300)
+    ]
+    enriched_seqs_CAAT = [ 
+        dna.generate_random_dna_sequence(7) +
+        dna.generate_random_dna_sequence(1, alphabet=["C"]*97 + ["T", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["A"]*97 + ["T", "C", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["A"]*97 + ["G", "C", "T"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["T"]*97 + ["C", "A", "G"]) +
+        dna.generate_random_dna_sequence(5)
+        for _ in range(200)
+    ]
+    two_motifs = SequenceEnrichment(
+        enriched_seqs_CTGAAG + 
+        enriched_seqs_CTTCAG + 
+        enriched_seqs_CAAT
+        )
+
+    two_motifs.plot_kmer_graph(kmer_size=4, stride=1, min_connection=0)
+    # %%

@@ -1,0 +1,10 @@
+editdistance
+hdbscan
+matplotlib
+networkx
+numpy   
+polars
+pytest
+scipy
+seaborn
+setuptools

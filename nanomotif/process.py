@@ -1,7 +1,8 @@
+#%%
 from nanomotif.data_loader import DataLoader
 from nanomotif.reference import Reference
 from nanomotif.motifs import SequenceEnrichment
-from nanomotif.utils.dna import sample_seq_at_letter, edit_distance
+from nanomotif.dna import sample_seq_at_letter
 import numpy as np
 import warnings
 import copy
@@ -412,6 +413,8 @@ def convert_flip_sequence(seqs):
         seqs_rc.append(seq_rc)
     return seqs_rc
 
-
-if __name__=="__main__":
-    pass
+#%%
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
+# %%
