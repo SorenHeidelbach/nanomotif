@@ -38,13 +38,13 @@ from nanomotif.motifs import SequenceEnrichment
 from nanomotif import dna
 import matplotlib.pyplot as plt
 sequences = [ 
-        dna.generate_random_dna_sequence(3) +
+        dna.generate_random_dna_sequence(6) +
         dna.generate_random_dna_sequence(1, alphabet=["G"]*97 + ["T", "A", "G"]) +
         dna.generate_random_dna_sequence(1, alphabet=["A"]*97 + ["T", "C", "G"]) +
         dna.generate_random_dna_sequence(1, alphabet=["T"]*97 + ["G", "C", "T"]) +
         dna.generate_random_dna_sequence(1, alphabet=["C"]*97 + ["C", "A", "G"]) +
-        dna.generate_random_dna_sequence(3)
-        for _ in range(200)
+        dna.generate_random_dna_sequence(7)
+        for _ in range(20000)
     ]
 seq_enrichment = SequenceEnrichment(sequences)
 
@@ -55,14 +55,22 @@ seq_enrichment.pssm()
 
 
 
-    array([[0.3175, 0.2675, 0.2325, 0.0225, 0.9725, 0.0025, 0.0225, 0.2475,
-            0.3225, 0.2375],
-           [0.2125, 0.2125, 0.2375, 0.0075, 0.0075, 0.9775, 0.0025, 0.2625,
-            0.2225, 0.2875],
-           [0.2225, 0.2525, 0.2825, 0.9775, 0.0125, 0.0175, 0.0175, 0.2175,
-            0.2225, 0.2775],
-           [0.2575, 0.2775, 0.2575, 0.0025, 0.0175, 0.0125, 0.9675, 0.2825,
-            0.2425, 0.2075]])
+    array([[2.48375e-01, 2.48825e-01, 2.50575e-01, 2.50325e-01, 2.47775e-01,
+            2.49725e-01, 1.03250e-02, 9.69425e-01, 2.50000e-05, 1.02750e-02,
+            2.50775e-01, 2.52325e-01, 2.54825e-01, 2.48625e-01, 2.51775e-01,
+            2.47525e-01, 2.51275e-01],
+           [2.54225e-01, 2.47725e-01, 2.52825e-01, 2.47075e-01, 2.53825e-01,
+            2.46925e-01, 9.07500e-03, 1.02250e-02, 9.81925e-01, 2.50000e-05,
+            2.50275e-01, 2.46675e-01, 2.48725e-01, 2.48875e-01, 2.52225e-01,
+            2.46975e-01, 2.48575e-01],
+           [2.44875e-01, 2.52025e-01, 2.47925e-01, 2.49625e-01, 2.49275e-01,
+            2.50525e-01, 9.80675e-01, 1.11750e-02, 9.32500e-03, 9.77500e-03,
+            2.53375e-01, 2.52075e-01, 2.51175e-01, 2.47175e-01, 2.45725e-01,
+            2.54275e-01, 2.48625e-01],
+           [2.52625e-01, 2.51525e-01, 2.48775e-01, 2.53075e-01, 2.49225e-01,
+            2.52925e-01, 2.50000e-05, 9.27500e-03, 8.82500e-03, 9.80025e-01,
+            2.45675e-01, 2.49025e-01, 2.45375e-01, 2.55425e-01, 2.50375e-01,
+            2.51325e-01, 2.51625e-01]])
 
 
 
@@ -75,25 +83,19 @@ seq_enrichment.consensus()
 
 
 
-    'TTTGATCAAT'
+    'TGTCTCGATCGAACTGC'
 
 
 
 
 ```python
-dna.plot_dna_sequences(sequences[0:10])
+# Plot sequences
+dna.plot_dna_sequences(sequences[0:10]);
 ```
 
 
-
-
-    <Axes: >
-
-
-
-
     
-![png](README_files/README_3_1.png)
+![png](README_files/README_3_0.png)
     
 
 
@@ -110,7 +112,40 @@ plt.legend();
     
 
 
-Extract K-mer connection in the sequence
+Evaluate positional enrichment in context of a specific prior distribution. 
+
+E.g. the position-specific scoring matrix (PSSM) another set of sequences, or a uniform distribution. Positional enrichment can then be detected.
+
+Usefull if the enrichment sequences come from a group of sequences that are not uniform in their nucleotide distribution.
+
+
+
+```python
+# Other sequences with wierd patterns
+wierd_sequences = SequenceEnrichment(
+    [
+        dna.generate_random_dna_sequence(7) +
+        dna.generate_random_dna_sequence(1, alphabet=["A", "G"]*3 + ["T", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["T"]*3 + ["C", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["A"]*3 + ["T", "C", "G"]) +
+        dna.generate_random_dna_sequence(7, alphabet=["C"]*20 + ["G"]*16 + ["A"]*27 + ["T"]*39) 
+        for _ in range(10000)
+    ]
+)
+
+seq_enrichment.update_kl_prior(wierd_sequences.pssm())
+seq_enrichment.plot_enrichment_with_prior();
+```
+
+
+    
+![png](README_files/README_6_0.png)
+    
+
+
+## K-mer connections in sequences
+
+Usefull for evaluation multiple enriched motifs in sequences. 
 
 
 ```python
@@ -127,27 +162,90 @@ exmaple_kmer_graph
   text-align: right;
 }
 </style>
-<small>shape: (207, 4)</small><table border="1" class="dataframe"><thead><tr><th>from</th><th>to</th><th>position</th><th>count</th></tr><tr><td>str</td><td>str</td><td>i64</td><td>u32</td></tr></thead><tbody><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>6</td><td>1</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>2</td><td>2</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>0</td><td>3</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>7</td><td>4</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AC&quot;</td><td>6</td><td>1</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AC&quot;</td><td>7</td><td>2</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AC&quot;</td><td>0</td><td>8</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AG&quot;</td><td>0</td><td>5</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AG&quot;</td><td>7</td><td>7</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AG&quot;</td><td>1</td><td>9</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AT&quot;</td><td>1</td><td>1</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AT&quot;</td><td>6</td><td>1</td></tr><tr><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr><tr><td>&quot;TG&quot;</td><td>&quot;GT&quot;</td><td>0</td><td>2</td></tr><tr><td>&quot;TG&quot;</td><td>&quot;GT&quot;</td><td>7</td><td>4</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TA&quot;</td><td>7</td><td>1</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TA&quot;</td><td>0</td><td>2</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TC&quot;</td><td>4</td><td>1</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TC&quot;</td><td>0</td><td>3</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TC&quot;</td><td>7</td><td>3</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TG&quot;</td><td>7</td><td>3</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TG&quot;</td><td>0</td><td>4</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TG&quot;</td><td>1</td><td>5</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>0</td><td>1</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>7</td><td>5</td></tr></tbody></table></div>
+<small>shape: (776, 4)</small><table border="1" class="dataframe"><thead><tr><th>from</th><th>to</th><th>position</th><th>count</th></tr><tr><td>str</td><td>str</td><td>i64</td><td>u32</td></tr></thead><tbody><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>4</td><td>8</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>9</td><td>17</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>5</td><td>50</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>14</td><td>276</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>1</td><td>283</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>10</td><td>297</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>3</td><td>304</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>13</td><td>304</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>2</td><td>311</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>0</td><td>314</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>11</td><td>319</td></tr><tr><td>&quot;AA&quot;</td><td>&quot;AA&quot;</td><td>12</td><td>334</td></tr><tr><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TG&quot;</td><td>4</td><td>1230</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>6</td><td>1</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>4</td><td>9</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>11</td><td>290</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>12</td><td>292</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>14</td><td>297</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>2</td><td>301</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>1</td><td>309</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>10</td><td>312</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>13</td><td>316</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>3</td><td>318</td></tr><tr><td>&quot;TT&quot;</td><td>&quot;TT&quot;</td><td>0</td><td>330</td></tr></tbody></table></div>
 
 
-
-Visualise the number of connection between K-mers at each position
 
 
 ```python
-dna.plot_kmer_graph(dna.kmer_graph(sequences, kmer_size=2))
+dna.plot_kmer_graph(dna.kmer_graph(sequences, kmer_size=2), y_axis="connections");
 ```
 
 
+    
+![png](README_files/README_9_0.png)
+    
 
 
-    <Axes: xlabel='K-mer start position, relative to methylation site', ylabel='Mean connections'>
 
-
+```python
+all_random = SequenceEnrichment(
+    [
+        dna.generate_random_dna_sequence(7) +
+        dna.generate_random_dna_sequence(1, alphabet=["A", "G"]*50 + ["T", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["A", "G"]*50 + ["T", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["T", "C"]*50 + ["C", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["T", "C"]*50 + ["C", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["A"]*50 + ["T", "C", "G"]) +
+        dna.generate_random_dna_sequence(7, alphabet=["C"]*20 + ["G"]*16 + ["A"]*27 + ["T"]*39) 
+        for _ in range(16000)
+    ]
+)
+all_random.plot_enrichment();
+```
 
 
     
-![png](README_files/README_8_1.png)
+![png](README_files/README_10_0.png)
+    
+
+
+
+```python
+dna.plot_kmer_graph(dna.kmer_graph(all_random.sequences, kmer_size=2), y_axis="connections");
+```
+
+
+    
+![png](README_files/README_11_0.png)
+    
+
+
+
+```python
+# Same positional freuqncies, but different connections
+all_connected = SequenceEnrichment(
+    [
+        dna.generate_random_dna_sequence(7) +
+        dna.generate_random_dna_sequence(1, alphabet=["A"]*100 + ["T", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["A"]*100 + ["T", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["T"]*100 + ["C", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["T"]*100 + ["C", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["A"]*50 + ["T", "C", "A"]) +
+        dna.generate_random_dna_sequence(7, alphabet=["C"]*20 + ["G"]*16 + ["A"]*27 + ["T"]*39) 
+        for _ in range(8200)
+    ] + [
+        dna.generate_random_dna_sequence(7) +
+        dna.generate_random_dna_sequence(1, alphabet=["G"]*100 + ["T", "A", "C"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["G"]*100 + ["T", "A", "C"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["C"]*100 + ["T", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["C"]*100 + ["T", "A", "G"]) +
+        dna.generate_random_dna_sequence(1, alphabet=["A"]*50 + ["T", "C", "G"]) +
+        dna.generate_random_dna_sequence(7, alphabet=["C"]*20 + ["G"]*16 + ["A"]*27 + ["T"]*39) 
+        for _ in range(7800)
+    ]
+)
+all_connected.plot_enrichment();
+```
+
+
+```python
+dna.plot_kmer_graph(dna.kmer_graph(all_connected.sequences, kmer_size=2), y_axis="connections");
+```
+
+
+    
+![png](README_files/README_13_0.png)
     
 
 
@@ -167,7 +265,5 @@ Nanomotif is released under the [MIT License](https://github.com/your-username/n
 ## Acknowledgments
 
 Nanomotif builds upon various open-source libraries and tools that are instrumental in its functionality. We would like to express our gratitude to the developers and contributors of these projects for their valuable work.
-
-
 
 
