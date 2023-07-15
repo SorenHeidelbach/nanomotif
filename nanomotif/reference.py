@@ -1,27 +1,49 @@
 
 import re
 import numpy as np
+import copy
 from nanomotif.utils import distance_to_nearest_value_in_arrays
 from nanomotif.dna import DNAsequences
-class Reference:
-    def __init__(self, path: str = None, sequences: dict = None, **kwargs):
-        self.path = path
-        if sequences is not None:
-            self.sequences = sequences
-        elif path is not None:
-            self.sequences = self.read_fasta(**kwargs)
-        else:
-            raise ValueError("Either path or sequences must be provided")
-        
-        self.seq_lengths = {k: len(v) for k, v in self.sequences.items()}
-        self.seq_gc = {k: get_gc_content(v) for k, v in self.sequences.items()}
+import nanomotif.dna as dna
 
-    def read_fasta(self, trim_names=False, trim_character=" ") -> dict:
+class Reference:
+    def __init__(self, fasta_path: str = None, sequence_dictionary: dict = None, **kwargs):
+        if sequence_dictionary is not None:
+            self.sequences = self._str_dict_to_dna_dict(sequence_dictionary)
+        elif fasta_path is not None:
+            self.sequences = self.read_from_fasta(fasta_path, **kwargs)
+        else:
+            raise ValueError("Either fasta_path or sequence_dictionary must be provided")
+        
+        self.seq_lengths = {key: len(val[0]) for key, val in self.sequences.items()}
+        self.seq_gc = {key: val.gc()[0] for key, val in self.sequences.items()}
+    
+    @property
+    def sequences(self):
+        return self._sequences
+    
+    @sequences.setter
+    def sequences(self, sequences):
+        self._check_sequences(sequences)
+        self._sequences = sequences
+
+    def _check_sequences(self, sequences):
+        assert type(sequences) == dict
+        assert len(sequences) > 0
+        for k, v in sequences.items():
+            assert type(k) == str
+            assert type(v) == DNAsequences
+
+    def _str_dict_to_dna_dict(self, sequences):
+        # Updates the sequences dictionary to be a dictionary of DNAsequences in place
+        return {k: DNAsequences([v]) for k, v in sequences.items()}
+
+    def read_from_fasta(self, path, trim_names=True, trim_character=" ") -> dict:
         """
         Reads a fasta file and returns a dictionary with the contig names as 
         keys and the sequences as values
         """
-        with open(self.path, 'r') as f:
+        with open(path, 'r') as f:
             lines = f.readlines()
         data = {}
         active_sequence_name = "no_header"
@@ -35,8 +57,7 @@ class Reference:
                     data[active_sequence_name] = ''
             else:
                 data[active_sequence_name] += line
-        
-        return data
+        return self._str_dict_to_dna_dict(data)
     
     def get_seqeunce_names(self) -> list:
         return list(self.sequences.keys())
@@ -58,18 +79,19 @@ class Reference:
 
     def sub_seq(self, contig: str, start: int = None, end: int = None) -> str:
         '''Returns the sequence of a contig from a fasta dictionary'''
-        return self.sequences[contig][start:end]
+        return self.sequences[contig][0][start:end]
     
     def motif_positions(self, motif: str, contig: str, reverse_strand=False) -> np.ndarray:
         '''Returns a list of the positions of a motif in a sequence in 1-based indexing'''
 
-        seq = self.sub_seq(contig)
         if reverse_strand:
-            seq = reverse_complement(seq)
+            seq = self.sequences[contig].reverse_complement()[0]
+        else:
+            seq = self.sequences[contig][0]
         positions = []
         for match in re.finditer(motif, seq):
             positions.append(match.start())
-        positions = np.array(positions)
+        positions = np.array(positions, dtype=np.int64)
 
         if reverse_strand:
             positions = self.seq_lengths[contig] - positions - len(motif)
@@ -96,7 +118,7 @@ class Reference:
         with open(out, 'w') as f:
             for name, seq in self.sequences.items():
                 f.write(f">{name}\n")
-                f.write(f"{seq}\n")
+                f.write(f"{seq[0]}\n")
 
 
 
