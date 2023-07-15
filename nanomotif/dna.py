@@ -1,5 +1,4 @@
-#%%
-from typing import List, Union
+from typing import List
 import random
 import numpy as np
 import polars as pl
