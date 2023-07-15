@@ -1,6 +1,6 @@
 # Nanomotif
 
-Nanomotif is a Python package that provides functionality for analyzing and manipulating DNA sequences. It is designed to help researchers in the field of nanotechnology and DNA nanotechnology to analyze and work with DNA sequences more effectively. With Nanomotif, you can perform tasks such as motif identification, sequence enrichment analysis, and sequence manipulation.
+Nanomotif is a Python package that provides functionality for analyzing and manipulating DNA sequences. With Nanomotif, you can perform tasks such as motif identification, sequence enrichment analysis, and sequence manipulation.
 
 ## Installation
 
