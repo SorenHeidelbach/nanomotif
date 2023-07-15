@@ -1,4 +1,3 @@
-#%%
 import numpy as np
 
 def find_nearest_value(array, x):
