@@ -9,7 +9,9 @@ Nanomotif is a Python package that provides functionality for analyzing and mani
 To install Nanomotif in your local Python environment, follow these steps:
 
 ```shell
-git clone https://github.com/your-username/nanomotif.git
+python3 -m venv myenv
+source myenv/bin/activate
+git clone https://github.com/SorenHeidelbach/nanomotif.git
 cd nanomotif
 pip install -r requirements.txt
 pip install .
